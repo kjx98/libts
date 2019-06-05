@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                ".",
+                "${workspaceFolder}/include"
+            ],
+            "cppStandard": "c++11",
+            "cStandard": "c11"
+        }
+    ],
+    "version": 4
+}
