@@ -112,7 +112,7 @@ TEST(testTS3, TestJulian)
 	EXPECT_EQ(jd1.Uint32(), testDate);
 	EXPECT_EQ(jd1, jd);
 	auto tt = time(nullptr);
-	struct tm *tmp=localtime(&tt);
+	struct tm *tmp=gmtime(&tt);
 	ts3::JulianDay jd2(tmp->tm_year+1900, tmp->tm_mon+1, tmp->tm_mday);
 	char	bb[128];
 	sprintf(bb, "%04d-%02d-%02d", tmp->tm_year+1900, tmp->tm_mon+1, tmp->tm_mday);

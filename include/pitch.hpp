@@ -568,10 +568,11 @@ protected:
 	char	PriceVariationIndicator;
 };
 
-static inline	pitchMessage *unmarshal(void *bufP, int bLen) {
+static inline	std::shared_ptr<pitchMessage> unmarshal(void *bufP, int bLen) {
 	Serialization	sr(bufP, bLen);
+	std::shared_ptr<pitchMessage>	ret;
 	u8		msgT;
-	if (!sr.decode(msgT)) return nullptr;
+	if (!sr.decode(msgT)) return ret;
 	pitchMessage	*res=nullptr;
 	switch((msgType)msgT) {
 	case MSG_SYSTEM_EVENT:
@@ -609,13 +610,14 @@ static inline	pitchMessage *unmarshal(void *bufP, int bLen) {
 		break;
 	case MSG_NOII:
 	case MSG_BROKEN_TRADE:
-		return nullptr;
+		return ret;
 	}
 	if (!res->unmarshal(sr)) {
 		delete res;
-		return nullptr;
+		return ret;
 	}
-	return res;
+	ret = std::shared_ptr<pitchMessage>(res);
+	return ret;
 }
 
 } }
