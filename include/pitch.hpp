@@ -573,51 +573,49 @@ static inline	std::shared_ptr<pitchMessage> unmarshal(void *bufP, int bLen) {
 	std::shared_ptr<pitchMessage>	ret;
 	u8		msgT;
 	if (!sr.decode(msgT)) return ret;
-	pitchMessage	*res=nullptr;
+	std::shared_ptr<pitchMessage>	res;
 	switch((msgType)msgT) {
 	case MSG_SYSTEM_EVENT:
-		res = (pitchMessage *)(new pitchSystemEvent);
+		res = std::make_shared<pitchSystemEvent>();
 		break;
 	case MSG_SYMBOL_DIRECTORY:
-		res = (pitchMessage *)(new pitchSymbolDirectory);
+		res = std::make_shared<pitchSymbolDirectory>();
 		break;
 	case MSG_SYMBOL_TRADING_ACTION:
-		res = (pitchMessage *)(new symbolTradingAction);
+		res = std::make_shared<symbolTradingAction>();
 		break;
 	case MSG_ADD_ORDER:
-		res = (pitchMessage *)(new addOrder);
+		res = std::make_shared<addOrder>();
 		break;
 	case MSG_ORDER_EXECUTED:
-		res = (pitchMessage *)(new orderExecuted);
+		res = std::make_shared<orderExecuted>();
 		break;
 	case MSG_ORDER_EXECUTED_WITH_PRICE:
-		res = (pitchMessage *)(new orderEexecutedWithPrice);
+		res = std::make_shared<orderEexecutedWithPrice>();
 		break;
 	case MSG_ORDER_CANCEL:
-		res = (pitchMessage *)(new orderCancel);
+		res = std::make_shared<orderCancel>();
 		break;
 	case MSG_ORDER_DELETE:
-		res = (pitchMessage *)(new orderDelete);
+		res = std::make_shared<orderDelete>();
 		break;
 	case MSG_ORDER_REPLACE:
-		res = (pitchMessage *)(new orderReplace);
+		res = std::make_shared<orderReplace>();
 		break;
 	case MSG_TRADE:
-		res = (pitchMessage *)(new msgTrade);
+		res = std::make_shared<msgTrade>();
 		break;
 	case MSG_CROSS_TRADE:
-		res = (pitchMessage *)(new crossTrade);
+		res = std::make_shared<crossTrade>();
 		break;
 	case MSG_NOII:
 	case MSG_BROKEN_TRADE:
 		return ret;
 	}
 	if (!res->unmarshal(sr)) {
-		delete res;
 		return ret;
 	}
-	ret = std::shared_ptr<pitchMessage>(res);
-	return ret;
+	return res;
 }
 
 } }
