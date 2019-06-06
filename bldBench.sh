@@ -126,6 +126,6 @@
             make -j"$JOBS"; sudo make install)
         [ -d benchmark/build ] || mkdir benchmark/build
         (cd benchmark/build; \
-            cmake .. -DCMAKE_BUILD_TYPE=Release; \
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_TESTING=OFF; \
             make -j"$JOBS"; sudo make install)
     fi
