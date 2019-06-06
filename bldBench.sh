@@ -77,7 +77,7 @@
 	fi
 
 	DEP_ARRAY=(g++ cmake make automake libssl-dev build-essential \
-    autoconf libtool doxygen googletest libgoogle-perftools-dev libboost-dev)
+    autoconf libtool doxygen libgoogle-perftools-dev libboost-dev)
 	COUNT=1
 	DISPLAY=""
 	DEP=""
@@ -119,10 +119,13 @@
     if [ ! -f /usr/local/lib/pkgconfig/benchmark.pc ]; then
         # to be install google benchmark
 		git clone https://github.com/google/benchmark.git
+		git clone https://github.com/google/googletest.git benchmark/googletest
+        [ -d benchmark/build.test ] || mkdir benchmark/build.test
+        (cd benchmark/build.test; \
+            cmake ../googletest -DCMAKE_BUILD_TYPE=Release; \
+            make -j"$JOBS"; sudo make install)
         [ -d benchmark/build ] || mkdir benchmark/build
         (cd benchmark/build; \
-			ln -s /usr/src/googletest ..; \
             cmake .. -DCMAKE_BUILD_TYPE=Release; \
             make -j"$JOBS"; sudo make install)
-		rm -f benchmark/googletest
     fi
