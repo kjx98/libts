@@ -19,6 +19,11 @@
 #endif
 #endif	//	__linux__
 
+// force MSVC using utf8 output
+#ifdef	_MSC_VER
+#pragma execution_character_set("UTF-8")
+#endif
+
 #include <stdint.h>
 
 #ifdef __CHECKER__
