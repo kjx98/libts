@@ -1,6 +1,9 @@
 ﻿libTS3 基础程序库
 =================
 
+[![Build Status](https://travis-ci.org/kjx98/libts.svg?branch=master)](
+https://travis-ci.org/kjx98/libts)
+
 ## 一、基本说明
 * libTS3 是 Jesse Kuang 独力开发的「C++ 跨平台交易基础设施」程序库
 * 使用 C++11 (C++17 in near future)
@@ -11,7 +14,7 @@
 * 跨平台Linux优先，但不支持老旧的OS
 * 仅考虑 64 位平台
 * 字符串仅支持 UTF8，source file 也使用 UTF8 编码。GBK应转码
-	* MSVC: 已在 libts/include/ts3/types.h 里面设定: #pragma execution_character_set("UTF-8")
+	* MSVC: 已在 include/ts3/types.h 里面设定: #pragma execution_character_set("UTF-8")
 	* GCC: 默认值已是 UTF-8, 或可强制使用: -fexec-charset=UTF-8 参数
 在众多 open source 的情况下，为何还要写？
 * 追求速度
