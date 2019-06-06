@@ -192,7 +192,7 @@ TEST(testTS3, TestOrderReplace)
 	auto msgP = ts3::pitch::unmarshal(bb, enLen);
 	ASSERT_NE(msgP, nullptr);
 	EXPECT_EQ(msgP->MessageType(), MSG_ORDER_REPLACE);
-	orderReplace *tp=(orderReplace *)msgP.get();
+	auto tp=std::static_pointer_cast<orderReplace>(msgP);
 	EXPECT_EQ(nSym, *tp);
 }
 
@@ -216,7 +216,7 @@ TEST(testTS3, TestTrade)
 	auto msgP = ts3::pitch::unmarshal(bb, enLen);
 	ASSERT_NE(msgP, nullptr);
 	EXPECT_EQ(msgP->MessageType(), MSG_TRADE);
-	msgTrade *tp=(msgTrade *)msgP.get();
+	auto tp=std::static_pointer_cast<msgTrade>(msgP);
 	EXPECT_EQ(nSym, *tp);
 }
 
@@ -240,7 +240,7 @@ TEST(testTS3, TestCrossTrade)
 	auto msgP = ts3::pitch::unmarshal(bb, enLen);
 	ASSERT_NE(msgP, nullptr);
 	EXPECT_EQ(msgP->MessageType(), MSG_CROSS_TRADE);
-	crossTrade *tp=(crossTrade *)msgP.get();
+	auto tp=std::static_pointer_cast<crossTrade>(msgP);
 	EXPECT_EQ(nSym, *tp);
 }
 
