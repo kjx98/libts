@@ -1,5 +1,6 @@
 dist: xenial
 compiler: gcc
+sudo: required
 addons:
   apt:
     packages:
@@ -14,6 +15,7 @@ branches:
 
 before_install:
   - sudo apt-get update -q
+  - ./bldBench.sh
 
 install:
   - mkdir build
