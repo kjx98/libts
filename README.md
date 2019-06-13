@@ -1,11 +1,11 @@
-﻿libTS3 基础程序库
+﻿libTS3 基础库
 =================
 
 [![Build Status](https://travis-ci.org/kjx98/libts.svg?branch=master)](
 https://travis-ci.org/kjx98/libts)
 
 ## 一、基本说明
-* libTS 是 Jesse Kuang 独力开发的「C++ 跨平台交易基础设施」程序库
+* libTS3 是 Jesse Kuang 独力开发的「C++ 跨平台交易基础设施」程序库
 * 使用 C++11 (C++17 in near future)
 	* Windows: 
 	* Linux:
@@ -39,3 +39,5 @@ https://travis-ci.org/kjx98/libts)
 * 开启 compiler 全部的警告信息：警告信息的重要性，相信不用再提醒了。
 	* 警告信息 -- 零容忍。
 
+### Math
+formula: $ f(x) = \int_{-\infty}^\infty \hat f(\xi)e^{2 \pi \xi x}d\xi $

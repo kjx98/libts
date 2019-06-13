@@ -11,6 +11,7 @@
 #include "ts3/timestamp.hpp"
 #include "ts3/julian.hpp"
 #include "ts3/serialization.hpp"
+#include "ts3/priceType.hpp"
 #include <gtest/gtest.h>
 
 using namespace std;
@@ -245,6 +246,13 @@ TEST(testTS3, TestSerial)
 	ASSERT_TRUE(memcmp(ubuf.cc, cc, sizeof(cc)) == 0);
 }
 
+TEST(testTS3, TestPriceType)
+{
+	ASSERT_EQ(ts3::toDouble(12345, 2), 123.45);
+	ASSERT_EQ(ts3::fromDouble<int>(1234.56, 2), 123456);
+	ASSERT_EQ(ts3::fromDouble<int32_t>(1234.53, 2), (int32_t)123453);
+	ASSERT_EQ(ts3::fromDouble<int64_t>(123412345678.53, 2), (int64_t)12341234567853);
+}
 
 int main(int argc,char *argv[])
 {
