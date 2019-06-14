@@ -12,9 +12,10 @@ namespace ts3 {
 const	int	defBufSize=64;
 class Serialization {
 public:
-	Serialization(): bSize_(defBufSize), off_(0), err_(false), bufp_(sBuff) {}
-	Serialization(const void *bufP, int bSize): bSize_(bSize), off_(0),
-		err_(false), bufp_((u8 *)bufP) {}
+	Serialization() = default;
+	Serialization(const Serialization &) = default;
+	Serialization(const void *bufP, int bSize): bSize_(bSize),
+		bufp_((u8 *)bufP) {}
 	int	Size() { return off_; }
 	void *Data() { return bufp_; }
 	bool Error() { return err_; }
@@ -124,10 +125,10 @@ public:
 		return true;
 	}
 private:
-	int		bSize_;
-	int		off_;
-	bool	err_;
-	u8		*bufp_;
+	int		bSize_ = defBufSize;
+	int		off_ = 0;
+	bool	err_ = false;
+	u8		*bufp_ = sBuff;
 	u8		sBuff[defBufSize];
 };
 

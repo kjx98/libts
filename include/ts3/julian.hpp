@@ -17,18 +17,16 @@ constexpr int32_t	julianEpoch = TS3_JULIAN_EPOCH;
 
 class JulianDay {
 public:
-	JulianDay & operator=(const JulianDay &j) {
-		if (this != &j) jDN_ = j.jDN_;
-		return *this;
-	}
 	bool operator==(const JulianDay &j) const {
 		return jDN_ == j.jDN_;
 	}
-	JulianDay(int j=0): jDN_(j) {};
+	//JulianDay() = default;
+	JulianDay(const JulianDay &) = default;
+	JulianDay(const int v=0) : jDN_(v) {}
 	JulianDay(int y, int m, int d) {
 		jDN_ = newJDN(y, m, d);
 	}
-	explicit JulianDay(uint32_t days) {
+	explicit JulianDay(const uint32_t days) {
 		int year = days / 10000;
 		int mon = (days % 10000) / 100;
 		int mday = days % 100;
@@ -87,7 +85,7 @@ private:
 		res += day - 32075;
 		return res;
 	};
-	int32_t	jDN_;
+	int32_t	jDN_ = 0;
 };
 
 
@@ -95,7 +93,7 @@ struct tm*	gmtime(const time_t &timeV, struct tm *result) {
 	if (result == nullptr) return result;
 	int	days=timeV/(3600*24);
 	int	hms=timeV % (3600*24);
-	JulianDay	jd(days+julianEpoch);
+	JulianDay jd(days+julianEpoch);
 	int	y,m,d;
 	if (!jd.getYMD(y,m,d)) return nullptr;
 	result->tm_year = y-1900;

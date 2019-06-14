@@ -13,17 +13,17 @@
 #define	TS3_TIME_MICROSECOND	1000000
 #define	TS3_TIME_NANOSECOND		1000000000
 
-bool inline	operator==(const tm& left, const tm& right) {
+bool static inline	operator==(const tm& left, const tm& right) {
 	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon) return false;
 	if (left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour) return false;
 	return (left.tm_min == right.tm_min && left.tm_sec == right.tm_sec);
 }
 
-bool inline	operator==(const timespec& left, const timespec& right) {
+bool static inline	operator==(const timespec& left, const timespec& right) {
 	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
 }
 
-timespec& operator+=(timespec& tt, const timespec &tv) {
+static inline timespec& operator+=(timespec& tt, const timespec &tv) {
 	tt.tv_sec += tv.tv_sec;
 	tt.tv_nsec += tv.tv_nsec;
 	if (tt.tv_nsec >= TS3_TIME_NANOSECOND) {
@@ -33,7 +33,7 @@ timespec& operator+=(timespec& tt, const timespec &tv) {
 	return tt;
 }
 
-timespec&	operator-=(timespec& tt, const timespec &tv) {
+static inline timespec& operator-=(timespec& tt, const timespec &tv) {
 	tt.tv_sec -= tv.tv_sec;
 	tt.tv_nsec -= tv.tv_nsec;
 	if (tt.tv_nsec < 0) {
@@ -62,9 +62,12 @@ const	uint32_t	HourUs=3600*(uint32_t)duration::us;
 
 class	timeval {
 public:
-	explicit timeval(const time_t *t): sec(*t), nanosec(0) {}
+	explicit timeval(const time_t *t): sec(*t) {}
 	timeval(int64_t tv): sec(tv>>32), nanosec(tv) {}
-	timeval(const timespec &tp): sec(tp.tv_sec), nanosec(tp.tv_nsec) {}
+	timeval() = default;
+	timeval(const timeval &) = default;
+	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) {
+	}
 	timeval& operator=(const timeval &tv) {
 		if (this != &tv) {
 			sec = tv.sec;
@@ -82,8 +85,8 @@ public:
 	time_t	seconds() const { return sec; }
 	int32_t nanoSeconds() const { return nanosec; }
 private:
-	int32_t	sec;
-	int32_t	nanosec;
+	int32_t	sec = 0;
+	int32_t	nanosec = 0;
 };
 
 
@@ -177,11 +180,11 @@ void inline	usleep(int64_t us) noexcept
 
 class subHour {
 public:
-	subHour(): tv_(0) {}
+	subHour() = default;
+	subHour(const subHour& ) = default;
 	explicit subHour(const uint32_t uTime): tv_(uTime) {
 		if (tv_ >= HourUs) tv_ -= HourUs;
 	}
-	subHour(const subHour& sh): tv_(sh.tv_) {}
 	subHour(int64_t uT): tv_(uT % HourUs) {}
 	subHour(uint8_t min, uint8_t sec, uint32_t uS=0) {
 		tv_ = uS % duration::us;
@@ -198,7 +201,7 @@ public:
 		return std::make_tuple(min,sec,res);
 	}
 private:
-	uint32_t	tv_;
+	uint32_t	tv_ = 0;
 };
 
 class timestamp
@@ -292,21 +295,16 @@ template <duration::duration_t dur>
 class DateTime {
 	const int64_t dur_div = duration::ns/dur;
 public:
-	DateTime(): _time(0){};
+	DateTime() = default;
+	DateTime(const DateTime &) = default;
 	DateTime(int64_t tt): _time(tt) {}
 	DateTime(const struct timespec &tp) {
 		_time = tp.tv_sec * dur;
 		_time += tp.tv_nsec / dur_div;
 	}
-	DateTime(int64_t baseTime, int64_t off) {
+	explicit DateTime(time_t baseTime, int64_t off) {
 		_time = baseTime * dur;
 		_time += off;
-	}
-	DateTime& operator=(const DateTime &dt) {
-		if (this != &dt) {
-			_time = dt._time;
-		}
-		return *this;
 	}
 	int64_t count() { return _time; }
 	time_t	to_time_t() { return _time/dur; }
@@ -341,7 +339,7 @@ public:
 		return bufp;
 	}
 private:
-	int64_t	_time;
+	int64_t	_time = 0;
 };
 
 class DateTimeMs {

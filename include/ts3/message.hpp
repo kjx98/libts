@@ -16,19 +16,6 @@ public:
 		if (length_ == 0) return true;
 		return memcmp(dataPtr_, msg.dataPtr_, length_) == 0;
 	}
-	message_t& operator=(const message_t &msg) {
-		if (this != &msg) {
-			bValid_ = msg.bValid_;
-			if (bValid_) {
-				length_ = msg.length_;
-				dataPtr_ = msg.dataPtr_;
-			} else {
-				length_ = 0;
-				dataPtr_ = nullptr;
-			}
-		}
-		return *this;
-	}
 	// return true, if successfully marshal
 	bool marshal(u8 *buff, size_t& buflen) {
 		if ( !bValid_ ) return false;
@@ -56,25 +43,12 @@ public:
 		dataPtr_ = buff;
 		bValid_ = true;
 	};
-	message_t() {
-		bValid_ = false;
-		length_ = 0;
-		dataPtr_ = nullptr;
-	};
-	message_t(const message_t &msg) {
-		bValid_ = msg.bValid_;
-		if (bValid_) {
-			length_ = msg.length_;
-			dataPtr_ = msg.dataPtr_;
-		} else {
-			length_ = 0;
-			dataPtr_ = nullptr;
-		}
-	}
+	message_t() = default;
+	message_t(const message_t &msg) = default;
 private:
-	u16		length_;	// le16
-	bool	bValid_;
-	const void *dataPtr_;
+	u16		length_ = 0;	// le16
+	bool	bValid_ = false;
+	const void *dataPtr_ = nullptr;
 };
 
 }

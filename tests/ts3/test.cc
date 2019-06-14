@@ -150,13 +150,13 @@ TEST(testTS3, TestClock)
 	char	ss[128];
 	cerr << "ts<ms>: " << ts2.String(ss) << endl;
 	ts3::usleep(25000);
-	ts2 = ts3::DateTime<ts3::duration::ms>(ts.baseTime(), ts.nowMs());
-	cerr << "ts<ms> after sleep 25ms: " << ts2.String(ss) << endl;
+	ts3::DateTime<ts3::duration::ms> ts22(ts.baseTime(), ts.nowMs());
+	cerr << "ts<ms> after sleep 25ms: " << ts22.String(ss) << endl;
 	tt += 3600*5;
 	simClk.setTime(tt);
 	usleep(25000);
-	ts2 = ts3::DateTime<ts3::duration::ms>(ts.baseTime(), ts.nowMs());
-	cerr << "ts<ms> 5:00 after sleep 25ms: " << ts2.String(ss) << endl;
+	ts3::DateTime<ts3::duration::ms> ts23(ts.baseTime(), ts.nowMs());
+	cerr << "ts<ms> 5:00 after sleep 25ms: " << ts23.String(ss) << endl;
 }
 
 TEST(testTS3, TestSubhour)
