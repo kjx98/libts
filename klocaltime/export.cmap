@@ -1,0 +1,6 @@
+{
+global:
+	localtime;
+	localtime_r;
+local: *;
+};
