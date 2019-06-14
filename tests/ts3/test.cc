@@ -123,7 +123,7 @@ TEST(testTS3, TestJulian)
 			<< jd2.count()%7 << std::endl;
 	ts3::JulianDay	jd3(1970,1,1);
 	std::cerr << "1970-01-01 epoch julianDay: " << jd3.count() << endl;
-	ASSERT_EQ(jd3.count(), ts3::julianEpoch);
+	ASSERT_EQ(jd3.count(), ts3::julian_Epoch);
 	struct tm tmGMT, tmTS;
 	gmtime_r(&tt, &tmGMT);
 	ts3::gmtime(tt, &tmTS);

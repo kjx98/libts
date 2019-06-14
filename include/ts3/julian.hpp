@@ -13,14 +13,16 @@ namespace ts3 {
 #define	TS3_JULIAN_ADJUSTMENT	1721425
 #define	TS3_JULIAN_EPOCH		2440588
 
-constexpr int32_t	julianEpoch = TS3_JULIAN_EPOCH;
+constexpr int32_t	julian_Epoch = TS3_JULIAN_EPOCH;
 
 class JulianDay {
 public:
 	bool operator==(const JulianDay &j) const {
 		return jDN_ == j.jDN_;
 	}
-	//JulianDay() = default;
+	bool operator<(const JulianDay &j) const {
+		return jDN_ < j.jDN_;
+	}
 	JulianDay(const JulianDay &) = default;
 	JulianDay(const int v=0) : jDN_(v) {}
 	JulianDay(int y, int m, int d) {
@@ -42,7 +44,7 @@ public:
 	}
 	int32_t	count() { return jDN_; }
 	time_t to_time_t() {
-		time_t	res=jDN_ - julianEpoch;
+		time_t	res=jDN_ - julian_Epoch;
 		res *= 3600*24;
 		return res;
 	}
@@ -93,7 +95,7 @@ struct tm*	gmtime(const time_t &timeV, struct tm *result) {
 	if (result == nullptr) return result;
 	int	days=timeV/(3600*24);
 	int	hms=timeV % (3600*24);
-	JulianDay jd(days+julianEpoch);
+	JulianDay jd(days+julian_Epoch);
 	int	y,m,d;
 	if (!jd.getYMD(y,m,d)) return nullptr;
 	result->tm_year = y-1900;
@@ -107,4 +109,4 @@ struct tm*	gmtime(const time_t &timeV, struct tm *result) {
 }
 
 }
-#endif	// __TS3__TIMESTAMP__
+#endif	// __TS3_JULIAN__
