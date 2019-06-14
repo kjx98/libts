@@ -34,7 +34,7 @@ https://travis-ci.org/kjx98/libts)
 	* cmake version 3.13
 	* gcc 8
 	* build via cmake
-* Windows: VS 2015	**(TODO)**
+* Windows: VS 2015	**(TODO)**, currently using cmake
 	* ./build/vs2015/ts3.sln
 * 开启 compiler 全部的警告信息：警告信息的重要性，相信不用再提醒了。
 	* 警告信息 -- 零容忍。
