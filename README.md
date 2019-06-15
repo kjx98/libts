@@ -40,14 +40,14 @@ https://travis-ci.org/kjx98/libts)
 	* 警告信息 -- 零容忍。
 
 ## 二、STL 库
-  julian 日期， message 消息包抽象，serialization 实现POD简单类型的序列化与反序列化，timestamp 低延迟微秒/纳秒级计时与时间戳，priceType抽象针对价格及金额的定点
+  julian 儒略日， message 消息包抽象，serialization 实现POD简单类型的序列化与反序列化，timestamp 低延迟微秒/纳秒级计时与时间戳，priceType针对价格及金额的定点与浮点double的互换
 
 ### julian
   儒略日数（Julian Day Number，JDN）的计算是从格林威治标准时间的中午开始，包含一个整天的时间，起点的时间（0日）回溯至儒略历的公元前4713年1月1日中午12点（在格里历是公元前4714年11月24日），这个日期是三种多年周期的共同起点，且是历史上最接近现代的一个起点。
-  1970年1月1日， julian 日为2440588。采用julian日， 一个16位整数即可表示约180年，而且计算星期几只需要取7的余数即可（即0表示周一，6表示周日）
+  unix 纪元1970年1月1日， julian 日为2440588。采用julian日， 一个16位整数即可表示约180年，而且计算星期几只需要取7的余数即可（即0表示周一，6表示周日）
 
 ### serialization
-  简单序炼化与反序列化，采用Little Endian（即小端编码，Intel/ARM64的CPU整数字节编码），字符串string以及字节串Bytes采用Pascal编码（长度0...255）以一字节表示长度后续bytes
+  简单序列化与反序列化，采用Little Endian（即小端编码，Intel/ARM64的CPU整数字节编码），字符串string以及字节串Bytes采用Pascal编码（长度0...255）以一字节表示长度后续bytes
   模板成员函数decode/encode支持intergral类型（即单字节/2/4/8字节数量值）
 
 ### timestamp
