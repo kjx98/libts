@@ -91,17 +91,19 @@ template<size_t nSize>
 class pstring {
 public:
 	pstring() {
-		static_assert(nSize > 0 && nSize < 256);
+		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		sBuf_[0] = 0;
 	}
 	pstring(const pstring &) = default;
 	pstring(const char *ss) {
+		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		size_t ll = strlen(ss);
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss, ll);
 	}
 	pstring(const std::string &ss) {
+		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		auto ll = ss.size();
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
@@ -110,7 +112,9 @@ public:
 	std::string String() const {
 		return std::string((char *)&sBuf_[1], sBuf_[0]);
 	}
-	size_t size() { return sBuf_[0]; }
+	char *data() const noexcept { return (char *)&sBuf_[1]; }
+	size_t size() const noexcept { return sBuf_[0]; }
+	size_t length() const noexcept { return sBuf_[0]; }
 private:
 	uint8_t	sBuf_[nSize];
 };
