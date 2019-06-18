@@ -260,6 +260,8 @@ TEST(testTS3, TestPString)
 	ts3::pstring<20>	ps(ss);
 	EXPECT_EQ(sizeof(ps), 20);
 	EXPECT_EQ(ps.String(), std::string(ss));
+	EXPECT_EQ(ps, std::string(ss));
+	EXPECT_EQ(std::string(ss), ps);
 	EXPECT_EQ(ps.String(), ss);
 }
 

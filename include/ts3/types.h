@@ -61,13 +61,7 @@ public:
 	int48_t(): loword_(0), hiword_(0) {}
 	// hiword is 16 bits, no need & 0xffff
 	int48_t(int64_t v): loword_(v & 0xffffffff), hiword_(v >>32) {}
-	int48_t& operator=(const int48_t &v) {
-		if (this != &v) {
-			loword_ = v.loword_;
-			hiword_ = v.hiword_;
-		}
-		return *this;
-	}
+	int48_t(const int48_t &) = default;
 	int64_t int64() const {
 		int64_t v= ((int64_t)hiword_) << 32;
 		v |= loword_;
@@ -86,6 +80,7 @@ private:
 	uint32_t	loword_;
 	int16_t		hiword_;
 } __attribute__((packed));
+
 
 template<size_t nSize>
 class pstring {
@@ -110,11 +105,20 @@ public:
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
 	std::string String() const {
-		return std::string((char *)&sBuf_[1], sBuf_[0]);
+		return std::string(data(), size());
 	}
 	char *data() const noexcept { return (char *)&sBuf_[1]; }
 	size_t size() const noexcept { return sBuf_[0]; }
 	size_t length() const noexcept { return sBuf_[0]; }
+	bool operator==(const pstring &v) {
+		return (size() == v.size() && memcmp(data(), v.data(), size()) == 0);
+	}
+	friend bool operator==(const pstring &lhs, const std::string& rhs) {
+		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+	}
+	friend bool operator==(const std::string &lhs, const pstring& rhs) {
+		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+	}
 private:
 	uint8_t	sBuf_[nSize];
 };
