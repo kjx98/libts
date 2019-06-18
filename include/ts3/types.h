@@ -95,14 +95,14 @@ public:
 		size_t ll = strlen(ss);
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
-		memcpy(sBuf_+1, ss, ll);
+		memcpy(data(), ss, ll);
 	}
 	pstring(const std::string &ss) {
 		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		auto ll = ss.size();
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
-		memcpy(sBuf_+1, ss.data(), ll);
+		memcpy(data(), ss.data(), ll);
 	}
 	std::string String() const {
 		return std::string(data(), size());
