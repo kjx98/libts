@@ -20,16 +20,16 @@ const char *fmtTime="%y-%m-%d %H:%M:%S";
 
 TEST(testTS3, TestTypes)
 {
-	int48_t	v;
+	ts3::int48_t	v;
 	uint32_t	loword;
 	ASSERT_EQ(sizeof(v), 6);
 	int64_t	v1=0x123456789012, v2=0x912345678901;
-	int48_t vv1(v1), vv2(v2);
+	ts3::int48_t vv1(v1), vv2(v2);
 	EXPECT_EQ(v1, vv1.int64());
 	EXPECT_NE(v2, vv2.int64());
 	memcpy(&loword, &vv1, sizeof(loword));
 	EXPECT_EQ(loword, vv1.int64()&0xffffffff);
-	int48_t	v3(0x912345678901);
+	ts3::int48_t	v3(0x912345678901);
 	std::cerr << "v3 value: " << std::hex << v3.int64() << std::endl;
 	EXPECT_TRUE(v3.int64() < 0);
 }
@@ -149,14 +149,14 @@ TEST(testTS3, TestClock)
 	EXPECT_EQ(tmp->tm_mday, 5);
 	char	ss[128];
 	cerr << "ts<ms>: " << ts2.String(ss) << endl;
-	ts3::usleep(25000);
-	ts3::DateTime<ts3::duration::ms> ts22(ts.baseTime(), ts.nowMs());
-	cerr << "ts<ms> after sleep 25ms: " << ts22.String(ss) << endl;
+	ts3::usleep(100);
+	ts3::DateTime<ts3::duration::us> ts22(ts.baseTime(), ts.nowUs());
+	cerr << "ts<ms> after sleep 100us: " << ts22.String(ss) << endl;
 	tt += 3600*5;
 	simClk.setTime(tt);
-	usleep(25000);
-	ts3::DateTime<ts3::duration::ms> ts23(ts.baseTime(), ts.nowMs());
-	cerr << "ts<ms> 5:00 after sleep 25ms: " << ts23.String(ss) << endl;
+	usleep(100);
+	ts3::DateTime<ts3::duration::us> ts23(ts.baseTime(), ts.nowUs());
+	cerr << "ts<ms> 5:00 after sleep 100us: " << ts23.String(ss) << endl;
 }
 
 TEST(testTS3, TestSubhour)
@@ -252,6 +252,15 @@ TEST(testTS3, TestPriceType)
 	ASSERT_EQ(ts3::fromDouble<int>(1234.56, 2), 123456);
 	ASSERT_EQ(ts3::fromDouble<int32_t>(1234.53, 2), (int32_t)123453);
 	ASSERT_EQ(ts3::fromDouble<int64_t>(123412345678.53, 2), (int64_t)12341234567853);
+}
+
+TEST(testTS3, TestPString)
+{
+	const char	*ss="test";
+	ts3::pstring<20>	ps(ss);
+	EXPECT_EQ(sizeof(ps), 20);
+	EXPECT_EQ(ps.String(), std::string(ss));
+	EXPECT_EQ(ps.String(), ss);
 }
 
 int main(int argc,char *argv[])

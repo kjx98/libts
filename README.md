@@ -63,5 +63,7 @@ https://travis-ci.org/kjx98/libts)
 
 ### types
   增加int48_t 	定义
+  增加 pstring 	定义，类Pascal字符串，长度小于256字节，首字节存放串长度
+
 ### Math
 formula: $ f(x) = \int_{-\infty}^\infty \hat f(\xi)e^{2 \pi \xi x}d\xi $
