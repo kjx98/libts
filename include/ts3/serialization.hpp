@@ -19,6 +19,18 @@ public:
 	int	Size() { return off_; }
 	void *Data() { return bufp_; }
 	bool Error() { return err_; }
+	template<size_t nSiz>bool encode(const pstring<nSiz> & ss) {
+		if (err_) return !err_;
+		if (ss.size() == 0) return encode1b(0);
+		if (off_ + (int)ss.size() > bSize_) {
+			err_ = true;
+			return !err_;
+		}
+		encode1b(ss.size());
+		memcpy(bufp_ + off_, ss.data(), ss.size());
+		off_ += ss.size();
+		return true;
+	}
 	template<typename T>bool encode(const T v) {
 		static_assert(std::is_integral<T>::value, "Integral required.");
 		if (err_) return !err_;
@@ -44,7 +56,7 @@ public:
 		bufp_[off_++] = v;
 		return true;
 	}
-	bool encodeString(std::string ss) {
+	bool encode(const std::string& ss) {
 		if (err_) return !err_;
 		if (ss.size() == 0) return encode1b(0);
 		if (off_ + (int)ss.size() > bSize_) {
@@ -65,6 +77,25 @@ public:
 		}
 		memcpy(bufp_+off_, buf, bLen); \
 		off_ += bLen;
+		return true;
+	}
+	template<size_t nSiz>bool decode(pstring<nSiz> & ss) {
+		if (err_) return !err_;
+		if (off_ >= bSize_) {
+			err_ = true;
+			return !err_;
+		}
+		size_t sLen = bufp_[off_++];
+		if (sLen == 0) {
+			ss = pstring<nSiz>();
+			return true;
+		}
+		if (sLen > nSiz || off_ + (int)sLen > bSize_) {
+			err_ = true;
+			return !err_;
+		}
+		ss = pstring<nSiz>((const char *)(bufp_+off_), sLen);
+		off_ += sLen;
 		return true;
 	}
 	template<typename T>bool decode(T& v) {
@@ -94,7 +125,7 @@ public:
 		v = bufp_[off_++];
 		return true;
 	}
-	bool decodeString(std::string& ss) {
+	bool decode(std::string& ss) {
 		if (err_) return !err_;
 		if (off_ >= bSize_) {
 			err_ = true;

@@ -51,7 +51,9 @@ TEST(testTS3, TestDatetime)
 	struct tm	tmp;
 	time_t	tn=time(nullptr);
 	tzset();
+#ifdef	__linux__
 	cerr << "tz off: " << std::dec << timezone << std::endl;
+#endif
 	ASSERT_TRUE(localtime_r(&tn, &tmp) != nullptr);
 	char	ss[128];
 	ASSERT_TRUE(strftime(ss, sizeof(ss)-1,fmtTime, &tmp) > 0);
@@ -65,7 +67,12 @@ TEST(testTS3, TestDatetime)
 	ASSERT_EQ(tmp.tm_mday, tmpN.tm_mday);
 	ASSERT_EQ(tmp.tm_mon, tmpN.tm_mon);
 	ASSERT_EQ(tmp.tm_year, tmpN.tm_year);
+#ifdef	__linux__
 	ts3::DateTime<ts3::duration::ms> ts1(tn-timezone, 123);
+#else
+	// FIXME: currently for Asia/Shanghai TZ
+	ts3::DateTime<ts3::duration::ms> ts1(tn + 28800, 123);
+#endif
 	//DateTime<...> String via GMT
 	ASSERT_TRUE(ts1.String(ss) != nullptr);
 	const char *sp=strptime(ss, fmtTime, &tmpN);
