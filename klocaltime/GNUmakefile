@@ -6,6 +6,7 @@
 #
 #	TRACE		- turn on tracing/debugging code
 #
+# only for linux platform
 #
 ifeq	($(OPTIMIZE),)
 OPTIMIZE=-O2
