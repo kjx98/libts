@@ -98,9 +98,11 @@ TEST(testTS3, TestTimeStamp)
 	ts3::DateTime<ts3::duration::ms> ts2(ts.baseTime(), msTS);
 	cerr << "cur ms: " << ts2.count() << endl;
 	EXPECT_EQ(ts2.to_time_t(), tt);
+#ifdef	__linux__
 	auto tt1=ts.timeMs(msTS);
 	auto ntt =std::chrono::system_clock::to_time_t(tt1);
 	EXPECT_EQ(ntt, tt);
+#endif
 	struct timespec sp, sp1;
 	ASSERT_EQ(clock_gettime(CLOCK_REALTIME, &sp), 0);
 	sp1 = sp;
