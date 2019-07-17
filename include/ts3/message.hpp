@@ -17,7 +17,7 @@ public:
 		return memcmp(dataPtr_, msg.dataPtr_, length_) == 0;
 	}
 	// return true, if successfully marshal
-	bool marshal(u8 *buff, size_t& buflen) {
+	bool marshal(u8 *buff, size_t& buflen) noexcept {
 		if ( !bValid_ ) return false;
 		if (buflen < sizeof(length_)+length_) return false;
 		buflen = length_;
@@ -26,7 +26,7 @@ public:
 		memcpy(buff+sizeof(length_), dataPtr_, length_);
 		return true;
 	}
-	bool unmarshal(void *buff, size_t buflen) {
+	bool unmarshal(void *buff, size_t buflen) noexcept {
 		length_ = buflen;
 		dataPtr_ = (buflen>0)?buff:nullptr;
 		bValid_ = true;
@@ -37,7 +37,7 @@ public:
 	};
 	size_t size() { return length_; }
 	const void * data() { return dataPtr_; }
-	message_t(const void *buff, size_t buflen) {
+	message_t(const void *buff, size_t buflen) noexcept {
 		assert(buflen >= 0);
 		length_ = buflen;
 		dataPtr_ = buff;

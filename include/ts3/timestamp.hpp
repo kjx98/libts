@@ -11,7 +11,7 @@
 
 #define	TS3_TIME_MILLISECOND	1000
 #define	TS3_TIME_MICROSECOND	1000000
-#define	TS3_TIME_NANOSECOND		1000000000
+#define	TS3_TIME_NANOSECOND		1000000000L
 
 bool inline	operator==(const tm& left, const tm& right) {
 	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon) return false;
@@ -80,6 +80,18 @@ public:
 	}
 	bool operator<(const timeval &tv) {
 		return sec < tv.sec || (sec == tv.sec && nanosec < tv.nanosec);
+	}
+	friend double operator-(const timeval& lhs, const timeval& rhs) noexcept
+	{
+		double res=(lhs.sec - rhs.sec);
+		res += (lhs.nanosec - rhs.nanosec)*0.000000001;
+		return res;
+	}
+	int64_t Sub(const timeval& rhs) noexcept
+	{
+		int64_t	res = (sec - rhs.sec) * duration::ns;
+		res += (nanosec - rhs.nanosec);
+		return res;
 	}
 	time_t	to_time_t() const { return sec; }
 	time_t	seconds() const { return sec; }

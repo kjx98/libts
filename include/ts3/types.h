@@ -62,7 +62,8 @@ public:
 	// hiword is 16 bits, no need & 0xffff
 	int48_t(int64_t v): loword_(v & 0xffffffff), hiword_(v >>32) {}
 	int48_t(const int48_t &) = default;
-	int64_t int64() const {
+	int64_t int64() const
+	{
 		int64_t v= ((int64_t)hiword_) << 32;
 		v |= loword_;
 		return v;
@@ -90,33 +91,38 @@ public:
 		sBuf_[0] = 0;
 	}
 	pstring(const pstring &) = default;
-	pstring(const char *ss) {
+	pstring(const char *ss, const size_t sLen=0) noexcept
+	{
 		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
-		size_t ll = strlen(ss);
+		size_t ll = sLen;
+		if (ll == 0) ll = strlen(ss);
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
-		memcpy(data(), ss, ll);
+		memcpy(sBuf_+1, ss, ll);
 	}
-	pstring(const std::string &ss) {
+	pstring(const std::string &ss) noexcept
+	{
 		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		auto ll = ss.size();
 		if (ll > nSize-1) ll = nSize-1;
 		sBuf_[0] = ll;
-		memcpy(data(), ss.data(), ll);
+		memcpy(sBuf_+1, ss.data(), ll);
 	}
-	std::string String() const {
+	std::string String() const noexcept {
 		return std::string(data(), size());
 	}
 	char *data() const noexcept { return (char *)&sBuf_[1]; }
 	size_t size() const noexcept { return sBuf_[0]; }
 	size_t length() const noexcept { return sBuf_[0]; }
-	bool operator==(const pstring &v) {
+	bool operator==(const pstring &v) noexcept {
 		return (size() == v.size() && memcmp(data(), v.data(), size()) == 0);
 	}
-	friend bool operator==(const pstring &lhs, const std::string& rhs) {
+	friend bool operator==(const pstring &lhs, const std::string& rhs) noexcept
+	{
 		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 	}
-	friend bool operator==(const std::string &lhs, const pstring& rhs) {
+	friend bool operator==(const std::string &lhs, const pstring& rhs) noexcept
+	{
 		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 	}
 private:

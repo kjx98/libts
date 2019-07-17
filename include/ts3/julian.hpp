@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <time.h>
+#include <cstring>
 #include <string>
 #include <chrono>
 #include <tuple>
@@ -48,10 +49,10 @@ public:
 		res *= 3600*24;
 		return res;
 	}
-	std::string String8() {
+	std::string String8() noexcept {
 		return std::to_string(jDN_);
 	}
-	std::string String() {
+	std::string String() noexcept {
 		int	y,m,d;
 		char	buff[64];
 		std::tie(y,m,d) = date(jDN_);
@@ -63,7 +64,7 @@ public:
 		}
 		return std::string(buff, strlen(buff));
 	}
-	bool getYMD(int &y, int &m, int &d) {
+	bool getYMD(int &y, int &m, int &d) noexcept {
 		std::tie(y, m , d) = date(jDN_);
 		return true;
 	}
@@ -91,7 +92,7 @@ private:
 };
 
 
-struct tm*	gmtime(const time_t &timeV, struct tm *result) {
+inline struct tm*	gmtime(const time_t &timeV, struct tm *result) noexcept {
 	if (result == nullptr) return result;
 	int	days=timeV/(3600*24);
 	int	hms=timeV % (3600*24);

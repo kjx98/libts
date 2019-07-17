@@ -71,7 +71,9 @@ TEST(testTS3, TestDatetime)
 	ts3::DateTime<ts3::duration::ms> ts1(tn-timezone, 123);
 #else
 	// FIXME: currently for Asia/Shanghai TZ
-	ts3::DateTime<ts3::duration::ms> ts1(tn + 28800, 123);
+	ts3::DateTime<ts3::duration::ms> ts1(tn, 123);
+	ASSERT_TRUE(gmtime_r(&tn, &tmp) != nullptr);
+	//tn -= 28800;
 #endif
 	//DateTime<...> String via GMT
 	ASSERT_TRUE(ts1.String(ss) != nullptr);

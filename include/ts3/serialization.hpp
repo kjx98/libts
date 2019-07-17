@@ -9,7 +9,6 @@
 
 namespace ts3 {
 
-const	int	defBufSize=64;
 class Serialization {
 public:
 	Serialization() = default;
@@ -19,7 +18,7 @@ public:
 	int	Size() { return off_; }
 	void *Data() { return bufp_; }
 	bool Error() { return err_; }
-	template<size_t nSiz>bool encode(const pstring<nSiz> & ss) {
+	template<size_t nSiz>bool encode(const pstring<nSiz> & ss) noexcept {
 		if (err_) return !err_;
 		if (ss.size() == 0) return encode1b(0);
 		if (off_ + (int)ss.size() > bSize_) {
@@ -31,7 +30,7 @@ public:
 		off_ += ss.size();
 		return true;
 	}
-	template<typename T>bool encode(const T v) {
+	template<typename T>bool encode(const T v) noexcept {
 		static_assert(std::is_integral<T>::value, "Integral required.");
 		if (err_) return !err_;
 		const int	vLen=sizeof(T);
@@ -43,11 +42,12 @@ public:
 		off_ += vLen;
 		return true;
 	}
-	template<typename T, typename... Args>bool encode(const T v, const Args... args) {
+	template<typename T, typename... Args>bool encode(const T v,
+			const Args... args) noexcept {
 		if (!encode(v)) return false;
 		return encode(args...);
 	}
-	bool encode1b(const u8 v) {
+	bool encode1b(const u8 v) noexcept {
 		if (err_) return !err_;	
 		if (off_ >= bSize_) {
 			err_ = true;
@@ -56,7 +56,7 @@ public:
 		bufp_[off_++] = v;
 		return true;
 	}
-	bool encode(const std::string& ss) {
+	bool encode(const std::string& ss) noexcept {
 		if (err_) return !err_;
 		if (ss.size() == 0) return encode1b(0);
 		if (off_ + (int)ss.size() > bSize_) {
@@ -68,7 +68,7 @@ public:
 		off_ += ss.size();
 		return true;
 	}
-	bool encodeBytes(const u8 *buf, const int bLen) {
+	bool encodeBytes(const u8 *buf, const int bLen) noexcept {
 		if (err_) return !err_;
 		assert(bLen>0);
 		if (off_ + bLen > bSize_) {
@@ -79,7 +79,7 @@ public:
 		off_ += bLen;
 		return true;
 	}
-	template<size_t nSiz>bool decode(pstring<nSiz> & ss) {
+	template<size_t nSiz>bool decode(pstring<nSiz> & ss) noexcept {
 		if (err_) return !err_;
 		if (off_ >= bSize_) {
 			err_ = true;
@@ -98,7 +98,7 @@ public:
 		off_ += sLen;
 		return true;
 	}
-	template<typename T>bool decode(T& v) {
+	template<typename T>bool decode(T& v) noexcept {
 		static_assert(std::is_integral<T>::value, "Integral required.");
 		if (err_) return !err_;
 		const int	vLen=sizeof(T);
@@ -110,13 +110,13 @@ public:
 		off_ += vLen;
 		return true;
 	}
-	template<typename T, typename... Args>bool decode(T& v, Args &... args) {
+	template<typename T, typename... Args>bool decode(T& v, Args &... args) noexcept {
 		decode(v);
 		if (err_) return !err_;	
 		decode(args...);
 		return !err_;
 	}
-	bool decode1b(u8& v) {
+	bool decode1b(u8& v) noexcept {
 		if (err_) return !err_;	
 		if (off_ >= bSize_) {
 			err_ = true;
@@ -125,7 +125,7 @@ public:
 		v = bufp_[off_++];
 		return true;
 	}
-	bool decode(std::string& ss) {
+	bool decode(std::string& ss) noexcept {
 		if (err_) return !err_;
 		if (off_ >= bSize_) {
 			err_ = true;
@@ -144,7 +144,7 @@ public:
 		off_ += sLen;
 		return true;
 	}
-	bool decodeBytes(u8 *buf, const int bLen) {
+	bool decodeBytes(u8 *buf, const int bLen) noexcept {
 		if (err_) return !err_;
 		assert(bLen>0);
 		if (off_ + bLen > bSize_) {
@@ -156,11 +156,10 @@ public:
 		return true;
 	}
 private:
-	int		bSize_ = defBufSize;
+	int		bSize_ = 0;
 	int		off_ = 0;
 	bool	err_ = false;
-	u8		*bufp_ = sBuff;
-	u8		sBuff[defBufSize];
+	u8		*bufp_ = nullptr;
 };
 
 }

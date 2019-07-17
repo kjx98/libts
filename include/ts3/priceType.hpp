@@ -24,12 +24,12 @@ static inline double digitDiv(int ndig) {
 }
 }
 
-template<typename T>static inline double toDouble(const T v, const int ndig) {
+template<typename T> inline double toDouble(const T v, const int ndig) {
 	return (double)v * fixed::digitDiv(ndig);
 }
 
-template<typename T>static inline T fromDouble(const double v, const int ndig) {
-	return (T)(v * fixed::digitMulti(ndig));
+template<typename T> inline T fromDouble(const double v, const int ndig) {
+	return (T)(v * fixed::digitMulti(ndig) + 0.5);
 }
 
 
