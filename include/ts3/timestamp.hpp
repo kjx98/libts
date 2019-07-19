@@ -14,8 +14,8 @@
 #define	TS3_TIME_NANOSECOND		1000000000L
 
 bool inline	operator==(const tm& left, const tm& right) {
-	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon) return false;
-	if (left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour) return false;
+	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon ||
+		left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour) return false;
 	return (left.tm_min == right.tm_min && left.tm_sec == right.tm_sec);
 }
 
@@ -63,10 +63,16 @@ const	uint32_t	HourUs=3600*(uint32_t)duration::us;
 class	timeval {
 public:
 	explicit timeval(const time_t *t): sec(*t) {}
-	timeval(int64_t tv): sec(tv>>32), nanosec(tv) {}
+	timeval(int64_t tv): sec(tv>>32), nanosec(tv & 0x3ffffff) {}
 	timeval() = default;
 	timeval(const timeval &) = default;
 	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) {
+	}
+	void Now() {
+		timespec	tp;
+		clock_gettime(TS3_SYSCLOCK, &tp);
+		sec = tp.tv_sec;
+		nanosec = tp.tv_nsec;
 	}
 	timeval& operator=(const timeval &tv) noexcept {
 		if (this != &tv) {
@@ -79,32 +85,36 @@ public:
 		return sec == tv.sec && nanosec == tv.nanosec;
 	}
 	bool operator<(const timeval &tv) {
-		return sec < tv.sec || (sec == tv.sec && nanosec < tv.nanosec);
+		return (sec == tv.sec)? (nanosec < tv.nanosec) : (sec < tv.sec);
 	}
+	// return diff in microseconds
 	friend double operator-(const timeval& lhs, const timeval& rhs) noexcept
 	{
-		double res=(lhs.sec - rhs.sec);
-		res += (lhs.nanosec - rhs.nanosec)*0.000000001;
-		return res;
+		time_t	res = lhs.sec - rhs.sec;
+		res *= duration::ns;
+		res += lhs.nanosec - rhs.nanosec;
+		return res * 0.001;
 	}
 	int64_t Sub(const timeval& rhs) noexcept
 	{
-		int64_t	res = (sec - rhs.sec) * duration::ns;
-		res += (nanosec - rhs.nanosec);
+		int64_t	res = sec - rhs.sec;
+		res *= duration::ns;
+		res += nanosec - rhs.nanosec;
 		return res;
 	}
-	time_t	to_time_t() const { return sec; }
+	//time_t	to_time_t() const { return sec; }
+	time_t	unix() const { return sec; }
 	time_t	seconds() const { return sec; }
-	int32_t nanoSeconds() const { return nanosec; }
+	uint32_t nanoSeconds() const { return nanosec; }
 private:
-	int32_t	sec = 0;
-	int32_t	nanosec = 0;
+	int32_t		sec = 0;
+	int32_t		nanosec = 0;
 };
 
 
 int64_t inline	operator-(const timespec& left, const timespec& right) noexcept{
 	int64_t	res=(left.tv_sec - right.tv_sec) * duration::ns;
-	res += (left.tv_nsec - right.tv_nsec);
+	res += left.tv_nsec - right.tv_nsec;
 	return res;
 }
 
@@ -220,14 +230,14 @@ private:
 class timestamp
 {
 public:
-	timestamp(): tz_("GMT") {
+	timestamp() noexcept: tz_("GMT") {
 		struct timespec tp;
 		clock_getres(TS3_SYSCLOCK, &tp);
 		_res = tp.tv_nsec;
 		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		_baseTime =tp.tv_sec; }
-	timestamp(time_t baseT) : _baseTime(baseT), tz_("GMT") {
+	timestamp(time_t baseT) noexcept : _baseTime(baseT), tz_("GMT") {
 		struct timespec tp;
 		clock_getres(TS3_SYSCLOCK, &tp);
 		_res = tp.tv_nsec;

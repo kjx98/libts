@@ -9,7 +9,7 @@
 namespace ts3 {
 class message_t {
 public:
-	bool operator==(const message_t &msg) const {
+	bool operator==(const message_t &msg) const noexcept {
 		if (bValid_ != msg.bValid_) return false;
 		if (! bValid_ ) return true;
 		if (length_ != msg.length_) return false;

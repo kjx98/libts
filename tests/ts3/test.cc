@@ -43,7 +43,7 @@ TEST(testTS3, TestTimeval)
 	ASSERT_EQ(tv.nanoSeconds(), 0);
 	tv = ts3::timeval(tt<<32 | 123);
 	EXPECT_EQ(tv.nanoSeconds(), 123);
-	EXPECT_EQ(tv.to_time_t(), tt);
+	EXPECT_EQ(tv.unix(), tt);
 }
 
 TEST(testTS3, TestDatetime)

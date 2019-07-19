@@ -83,6 +83,15 @@ private:
 } __attribute__((packed));
 
 
+uint32_t inline __hash(const char* data, size_t len)
+{
+	uint32_t	hash(2166136261);
+	for (size_t i=0;i<len;++i) {
+		hash = (16777619 * hash) ^ data[i];
+	}
+	return hash;
+}
+
 template<size_t nSize>
 class pstring {
 public:
@@ -108,14 +117,22 @@ public:
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
+	struct hash
+	{
+		size_t operator()(pstring const &s) const noexcept {
+			//return std::hash<std::string>{}(s.String());
+			return __hash(data(), size());
+		}
+	};
 	std::string String() const noexcept {
 		return std::string(data(), size());
 	}
 	char *data() const noexcept { return (char *)&sBuf_[1]; }
 	size_t size() const noexcept { return sBuf_[0]; }
 	size_t length() const noexcept { return sBuf_[0]; }
-	bool operator==(const pstring &v) noexcept {
-		return (size() == v.size() && memcmp(data(), v.data(), size()) == 0);
+	friend bool operator==(const pstring &lhs, const pstring& rhs) noexcept
+	{
+		return memcmp(lhs.data(), rhs.data(), nSize) == 0;
 	}
 	friend bool operator==(const pstring &lhs, const std::string& rhs) noexcept
 	{
@@ -125,9 +142,14 @@ public:
 	{
 		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 	}
+	friend bool operator<(const pstring& lhs, const pstring& rhs) noexcept
+	{
+		return memcmp(lhs.data(), rhs.data(), nSize) < 0;
+	}
 private:
 	uint8_t	sBuf_[nSize];
 };
+
 }
 
 #endif	// __TS3_TYPES__
