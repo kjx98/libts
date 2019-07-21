@@ -207,8 +207,9 @@ TEST(testTS3, TestSerial)
 		int16_t		a;
 		int32_t		b;
 		char		cc[8];
+		std::string	ss;
 	};
-	upkgBuf ubuf={1,2,"test"};
+	upkgBuf ubuf={1,2,"test", "is ok"};
 	EXPECT_NE(sizeof(pbuf), sizeof(ubuf));
 	char	bb[32];
 	memcpy(pbuf.cc, ubuf.cc, sizeof(ubuf.cc));
@@ -217,6 +218,7 @@ TEST(testTS3, TestSerial)
 	ASSERT_TRUE(serialB.encode2b(ubuf.a));
 	ASSERT_TRUE(serialB.encode4b(ubuf.b));
 	ASSERT_TRUE(serialB.encodeBytes((u8 *)ubuf.cc, sizeof(ubuf.cc)));
+	ASSERT_TRUE(serialB.encode(ubuf.ss));
 	int bLen=serialB.Size();
 	EXPECT_EQ(sizeof(pbuf), bLen);
 	EXPECT_TRUE(memcmp(bb, &pbuf, sizeof(pbuf)) == 0);
@@ -224,12 +226,15 @@ TEST(testTS3, TestSerial)
 	uint16_t	a;
 	uint32_t	b;
 	char		cc[8];
+	std::string	ss;
 	ASSERT_TRUE(serialC.decode2b(a));
 	ASSERT_TRUE(serialC.decode4b(b));
 	ASSERT_TRUE(serialC.decodeBytes((u8 *)cc, sizeof(cc)));
+	ASSERT_TRUE(serialC.decode(ss));
 	EXPECT_EQ(ubuf.a, a);
 	EXPECT_EQ(ubuf.b, b);
 	ASSERT_TRUE(memcmp(ubuf.cc, cc, sizeof(cc)) == 0);
+	EXPECT_EQ(ubuf.ss, ss);
 	ts3::Serialization  serialC1(bb, bLen);
 	ASSERT_TRUE(serialC1.decode(a));
 	ASSERT_TRUE(serialC1.decode(b));
@@ -239,14 +244,17 @@ TEST(testTS3, TestSerial)
 	uint16_t	a;
 	uint32_t	b;
 	char		cc[8];
+	std::string	ss;
 	int		bLen;
 #endif
 	memset(bb, 0, sizeof(bb));
 	ts3::Serialization	serialB1(bb, sizeof(bb));
 	ASSERT_TRUE(serialB1.encode(ubuf.a, ubuf.b));
 	ASSERT_TRUE(serialB1.encodeBytes((const u8*)ubuf.cc, sizeof(ubuf.cc)));
+	ASSERT_TRUE(serialB1.encode(ubuf.ss));
 	bLen=serialB1.Size();
-	EXPECT_EQ(sizeof(pbuf), bLen);
+	//EXPECT_EQ(sizeof(pbuf), bLen);
+	EXPECT_EQ(sizeof(pbuf)+6, bLen);
 	EXPECT_TRUE(memcmp(bb, &pbuf, sizeof(pbuf)) == 0);
 	ts3::Serialization  serialC2(bb, bLen);
 	auto res=serialC2.decode(a, b);
@@ -255,6 +263,8 @@ TEST(testTS3, TestSerial)
 	EXPECT_EQ(ubuf.b, b);
 	ASSERT_TRUE(serialC2.decodeBytes((u8 *)cc, sizeof(cc)));
 	ASSERT_TRUE(memcmp(ubuf.cc, cc, sizeof(cc)) == 0);
+	ASSERT_TRUE(serialC2.decode(ss));
+	EXPECT_EQ(ubuf.ss, ss);
 }
 
 TEST(testTS3, TestPriceType)

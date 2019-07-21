@@ -56,6 +56,10 @@ enum duration_t {
 	us = TS3_TIME_MICROSECOND,
 	ns = TS3_TIME_NANOSECOND,
 };
+
+constexpr double msDiv = 1.0/ms;
+constexpr double usDiv = 1.0/us;
+constexpr double nsDiv = 1.0/ns;
 }
 
 const	uint32_t	HourUs=3600*(uint32_t)duration::us;
@@ -87,13 +91,12 @@ public:
 	bool operator<(const timeval &tv) {
 		return (sec == tv.sec)? (nanosec < tv.nanosec) : (sec < tv.sec);
 	}
-	// return diff in microseconds
+	// return diff in seconds
 	friend double operator-(const timeval& lhs, const timeval& rhs) noexcept
 	{
-		time_t	res = lhs.sec - rhs.sec;
-		res *= duration::ns;
-		res += lhs.nanosec - rhs.nanosec;
-		return res * 0.001;
+		auto res = lhs.sec - rhs.sec;
+		auto rem = lhs.nanosec - rhs.nanosec;
+		return res + rem * duration::nsDiv;
 	}
 	int64_t Sub(const timeval& rhs) noexcept
 	{
@@ -385,7 +388,7 @@ public:
 		struct timespec tp;
 		clock_gettime(CLOCK_REALTIME, &tp);
 		sec_ = tp.tv_sec;
-		msec_ = (tp.tv_nsec) / 1000000;
+		msec_ = (tp.tv_nsec) / (duration::ns/duration::ms);
 	};
 	inline struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
 		if (bufp == nullptr) return gmtime(&sec_);
