@@ -73,7 +73,7 @@ TEST(testTS3, TestDatetime)
 	// FIXME: currently for Asia/Shanghai TZ
 	ts3::DateTime<ts3::duration::ms> ts1(tn, 123);
 	ASSERT_TRUE(gmtime_r(&tn, &tmp) != nullptr);
-	//tn -= 28800;
+	tn -= 28800;
 #endif
 	//DateTime<...> String via GMT
 	ASSERT_TRUE(ts1.String(ss) != nullptr);
@@ -89,6 +89,9 @@ TEST(testTS3, TestDatetime)
 
 TEST(testTS3, TestTimeStamp)
 {
+	//ts3::sysclock	clk;
+	//clk.setTime(time(nullptr));
+	//ts3::timestamp	ts("CST", false, clk);
 	ts3::timestamp	ts("CST", false);
 	cerr << "Sys clock resolution: " << ts.resolution() << "ns" << endl;
 	auto bt = ts.baseTime();
@@ -100,7 +103,7 @@ TEST(testTS3, TestTimeStamp)
 	ts3::DateTime<ts3::duration::ms> ts2(ts.baseTime(), msTS);
 	cerr << "cur ms: " << ts2.count() << endl;
 	EXPECT_EQ(ts2.to_time_t(), tt);
-#ifdef	__linux__
+#ifdef	USE_TIME_POINT
 	auto tt1=ts.timeMs(msTS);
 	auto ntt =std::chrono::system_clock::to_time_t(tt1);
 	EXPECT_EQ(ntt, tt);

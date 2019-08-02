@@ -117,6 +117,7 @@ public:
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
+#ifdef	__linux__
 	struct hash
 	{
 		size_t operator()(pstring const &s) const noexcept {
@@ -124,6 +125,7 @@ public:
 			return __hash(data(), size());
 		}
 	};
+#endif
 	std::string String() const noexcept {
 		return std::string(data(), size());
 	}

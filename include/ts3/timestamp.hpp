@@ -15,7 +15,8 @@
 
 bool inline	operator==(const tm& left, const tm& right) {
 	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon ||
-		left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour) return false;
+		left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour)
+		return false;
 	return (left.tm_min == right.tm_min && left.tm_sec == right.tm_sec);
 }
 
@@ -62,7 +63,7 @@ constexpr double usDiv = 1.0/us;
 constexpr double nsDiv = 1.0/ns;
 }
 
-const	uint32_t	HourUs=3600*(uint32_t)duration::us;
+constexpr uint32_t	HourUs=3600*(uint32_t)duration::us;
 
 class	timeval {
 public:
@@ -195,12 +196,12 @@ timespec_deltaMs(const timespec &before, const timespec &after)
 void inline	usleep(int64_t us) noexcept
 {
 	timespec	tSt, tp;
-	clock_gettime(CLOCK_REALTIME, &tSt);
+	clock_gettime(TS3_SYSCLOCK, &tSt);
     auto intV = us *1000;
     do {
         std::this_thread::yield();
         //sched_yield(); // same effect as prev line
-		clock_gettime(CLOCK_REALTIME, &tp);
+		clock_gettime(TS3_SYSCLOCK, &tp);
     } while (tp - tSt < intV);
 }
 
@@ -237,7 +238,6 @@ public:
 		struct timespec tp;
 		clock_getres(TS3_SYSCLOCK, &tp);
 		_res = tp.tv_nsec;
-		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		_baseTime =tp.tv_sec; }
 	timestamp(time_t baseT) noexcept : _baseTime(baseT), tz_("GMT") {
@@ -251,7 +251,6 @@ public:
 		struct timespec tp;
 		clock_getres(TS3_SYSCLOCK, &tp);
 		_res = tp.tv_nsec;
-		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		struct	tm *tmp;
 		if (isGMT) tmp=gmtime(&tp.tv_sec); else tmp = localtime(&tp.tv_sec);
@@ -269,7 +268,6 @@ public:
 	}
 	int64_t nowUs() noexcept {
 		struct timespec tp;
-		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		return duration::us * (tp.tv_sec - _baseTime) + (tp.tv_nsec)/1000;
 	}
@@ -282,13 +280,11 @@ public:
 	// compact milliseconds timestamp
 	int64_t nowMs() noexcept {
 		struct timespec tp;
-		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		return 1000 * (tp.tv_sec - _baseTime) + tp.tv_nsec/(int)duration::us;
 	};
 	uint32_t nowMsN() noexcept {
 		struct timespec tp;
-		//clock_gettime(TS3_SYSCLOCK, &tp);
 		sysClock_.now(tp);
 		uint32_t res =  (tp.tv_sec - _baseTime) << 15;
 		res |= (tp.tv_nsec >> 15) & 0x7fff;
@@ -302,7 +298,7 @@ public:
 	time_t	to_timeMs(int64_t msVal) {
 		return _baseTime + (msVal/duration::ms);
 	}
-#ifdef	__linux__
+#ifdef	USE_TIME_POINT
 	std::chrono::system_clock::time_point time(int64_t nsVal) noexcept {
 		std::chrono::nanoseconds dur(_baseTime*duration::ns + nsVal);
 		return std::chrono::system_clock::time_point(dur);
@@ -321,7 +317,7 @@ private:
 
 template <duration::duration_t dur>
 class DateTime {
-	const int64_t dur_div = duration::ns/dur;
+	constexpr static int64_t dur_div = duration::ns/dur;
 public:
 	DateTime() = default;
 	DateTime(const DateTime &) = default;
@@ -386,7 +382,7 @@ public:
 	}
 	DateTimeMs() {
 		struct timespec tp;
-		clock_gettime(CLOCK_REALTIME, &tp);
+		clock_gettime(TS3_SYSCLOCK, &tp);
 		sec_ = tp.tv_sec;
 		msec_ = (tp.tv_nsec) / (duration::ns/duration::ms);
 	};

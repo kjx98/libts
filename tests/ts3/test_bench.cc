@@ -172,7 +172,12 @@ BENCHMARK(test_localtime);
 
 static void test_klocaltime(benchmark::State &state)
 {
+#ifdef	__linux__
 	auto tt = time(0)-timezone;
+#else
+	// FIXME: Asia/Shanghai
+	auto tt = time(0)+28800;
+#endif
 	struct tm tmss;
 	for (auto _ : state) {
 		gmtime_r(&tt, &tmss);
