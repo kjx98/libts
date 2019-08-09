@@ -35,7 +35,7 @@ public:
 		int mday = days % 100;
 		jDN_ = newJDN(year, mon, mday);
 	}
-	uint32_t Uint32() {
+	uint32_t Uint32() noexcept {
 		int	y,m,d;
 		std::tie(y,m,d) = date(jDN_);
 		if (y >= 0) {
@@ -69,7 +69,7 @@ public:
 		return true;
 	}
 private:
-	static	std::tuple<int,int,int> date(int j) {
+	static	std::tuple<int,int,int> date(int j) noexcept {
 		int y, m, d;
 		int f = j + 1401 + (((4*j+274277)/146097)*3)/4 - 38;
 		int e = 4*f + 3;
@@ -80,7 +80,7 @@ private:
 		y = e/1461 - 4716 + (12+2-m)/12;
 		return std::make_tuple(y,m,d);
 	}
-	static	int	newJDN(int year, int month, int day) {
+	static	int	newJDN(int year, int month, int day) noexcept {
 		if (month < 1 || month > 12 || day < 1 || day > 31) return 0;
 		int res = (1461 * (year + 4800 + (month-14)/12)) / 4;
 		res += (367 * (month - 2 - 12*((month-14)/12))) / 12;

@@ -47,6 +47,29 @@ inline timespec& operator-=(timespec& tt, const timespec &tv) {
 
 namespace ts3 {
 
+inline time_t mkgmtime(const struct tm* stm) {
+   static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+   long     year = 1900 + stm->tm_year + stm->tm_mon / 12;
+   time_t   result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
+   result += (year - 1968) / 4;
+   result -= (year - 1900) / 100;
+   result += (year - 1600) / 400;
+   if ( (year % 4) == 0
+   &&  ((year % 100) != 0 || (year % 400) == 0)
+   &&  (stm->tm_mon % 12) < 2 )
+      --result;
+   result += stm->tm_mday - 1;
+   result *= 24;
+   result += stm->tm_hour;
+   result *= 60;
+   result += stm->tm_min;
+   result *= 60;
+   result += stm->tm_sec;
+   //if (stm->tm_isdst == 1)
+   //   result -= 3600;
+   return (result);
+}
+
 // CLOCK_MONOTONIC not compatible with chrono, even steady_clock
 //#define	TS3_SYSCLOCK	CLOCK_MONOTONIC
 #define	TS3_SYSCLOCK	CLOCK_REALTIME
@@ -116,7 +139,7 @@ private:
 };
 
 
-int64_t inline	operator-(const timespec& left, const timespec& right) noexcept{
+int64_t inline operator-(const timespec& left, const timespec& right) noexcept {
 	int64_t	res=(left.tv_sec - right.tv_sec) * duration::ns;
 	res += left.tv_nsec - right.tv_nsec;
 	return res;
@@ -166,26 +189,28 @@ public:
 		now(sp);
 		tv = timeval(sp);
 	}
+	time_t time() noexcept {
+		timespec	sp;
+		now(sp);
+		return sp.tv_sec;
+	}
 private:
 	sysclock_t	clockType_;
 	std::shared_ptr<timespec>	timeAdj_;
 };
 
 #ifdef	_NTEST
-inline int64_t
-timespec_delta(const timespec &before, const timespec &after)
+inline int64_t timespec_delta(const timespec &before, const timespec &after)
 {
 	return duration::ns * (after.tv_sec - before.tv_sec) + (after.tv_nsec - before.tv_nsec);
 }
 
-inline int64_t
-timespec_deltaUs(const timespec &before, const timespec &after)
+inline int64_t timespec_deltaUs(const timespec &before, const timespec &after)
 {
 	return duration::us * (after.tv_sec - before.tv_sec) + (after.tv_nsec - before.tv_nsec)/1000;
 }
 
-inline int64_t
-timespec_deltaMs(const timespec &before, const timespec &after)
+inline int64_t timespec_deltaMs(const timespec &before, const timespec &after)
 {
 	return (after - before)/duration::us;
 }
@@ -321,26 +346,34 @@ class DateTime {
 public:
 	DateTime() = default;
 	DateTime(const DateTime &) = default;
-	DateTime(int64_t tt): _time(tt) {}
-	DateTime(const struct timespec &tp) {
-		_time = tp.tv_sec * dur;
-		_time += tp.tv_nsec / dur_div;
+	DateTime(int64_t tt): time_(tt) {}
+	explicit DateTime(const struct timespec &tp) {
+		time_ = tp.tv_sec * dur;
+		time_ += tp.tv_nsec / dur_div;
+	}
+	explicit DateTime(const timeval &tv) {
+		time_ = tv.seconds() * dur;
+		time_ += tv.nanoSeconds() / dur_div;
 	}
 	explicit DateTime(time_t baseTime, int64_t off) {
-		_time = baseTime * dur;
-		_time += off;
+		time_ = baseTime * dur;
+		time_ += off;
 	}
-	int64_t count() { return _time; }
-	time_t	to_time_t() { return _time/dur; }
+	int64_t count() { return time_; }
+	time_t	to_time_t() { return time_/dur; }
 	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
-		time_t	sec_ = _time/dur;
+		time_t	sec_ = time_/dur;
+#ifdef	__linux__
+		sec_ -= timezone;
+#endif
 		if (bufp == nullptr) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
 	};
-	inline char *String(char *bufp) noexcept {
+	char *String(char *bufp) noexcept {
 		if (bufp == nullptr) return nullptr;
+		if (time_ == 0) { *bufp = 0; return bufp; }
 		auto tmp = tmPtr();
-		int	msec_ = _time % dur;
+		int	msec_ = time_ % dur;
 		// strftime without milliseconds
 		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
 		switch (dur) {
@@ -363,7 +396,7 @@ public:
 		return bufp;
 	}
 private:
-	int64_t	_time = 0;
+	int64_t	time_ = 0;
 };
 
 class DateTimeMs {
@@ -386,11 +419,17 @@ public:
 		sec_ = tp.tv_sec;
 		msec_ = (tp.tv_nsec) / (duration::ns/duration::ms);
 	};
-	inline struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
+	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
+#ifdef	__linux__
+		time_t	secs = sec_ - timezone;
+		if (bufp == nullptr) return gmtime(&secs);
+		return gmtime_r(&secs, bufp);
+#else
 		if (bufp == nullptr) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
+#endif
 	};
-	inline char *String(char *bufp) noexcept {
+	char *String(char *bufp) noexcept {
 		if (bufp == nullptr) return nullptr;
 		auto tmp = tmPtr();
 	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
@@ -398,7 +437,7 @@ public:
 			tmp->tm_sec, msec_);
 		return bufp;
 	}
-	int	inline ms() { return msec_; }
+	int	ms() { return msec_; }
 private:
 	time_t	sec_;
 	int		msec_;

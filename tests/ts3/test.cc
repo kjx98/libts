@@ -68,10 +68,12 @@ TEST(testTS3, TestDatetime)
 	ASSERT_EQ(tmp.tm_mon, tmpN.tm_mon);
 	ASSERT_EQ(tmp.tm_year, tmpN.tm_year);
 #ifdef	__linux__
-	ts3::DateTime<ts3::duration::ms> ts1(tn-timezone, 123);
+	//ts3::DateTime<ts3::duration::ms> ts1(tn-timezone, 123);
+	ts3::DateTime<ts3::duration::ms> ts1(tn, 123);
 #else
 	// FIXME: currently for Asia/Shanghai TZ
 	ts3::DateTime<ts3::duration::ms> ts1(tn, 123);
+	//ASSERT_TRUE(localtime_r(&tn, &tmp) != nullptr);
 	ASSERT_TRUE(gmtime_r(&tn, &tmp) != nullptr);
 	tn -= 28800;
 #endif
@@ -82,6 +84,12 @@ TEST(testTS3, TestDatetime)
 	EXPECT_EQ(tmp, tmpN);
 	EXPECT_EQ(tn, mktime(&tmpN));
 	EXPECT_EQ(".123", string(sp, 4));
+#ifdef	__linux__
+	EXPECT_EQ(tn-timezone, ts3::mkgmtime(&tmpN));
+#else
+	tn+= 28800;
+	EXPECT_EQ(tn, ts3::mkgmtime(&tmpN));
+#endif
 	ts3::DateTimeMs	dtMs(ts1.count());
 	auto ttpp=dtMs.tmPtr();
 	EXPECT_EQ(tmp, *ttpp);

@@ -36,7 +36,7 @@ public:
 		return !bValid_;
 	};
 	size_t size() { return length_; }
-	const void * data() { return dataPtr_; }
+	char * data() const { return (char *)dataPtr_; }
 	message_t(const void *buff, size_t buflen) noexcept {
 		assert(buflen >= 0);
 		length_ = buflen;

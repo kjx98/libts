@@ -193,6 +193,14 @@ static void test_mktime(benchmark::State &state)
 }
 BENCHMARK(test_mktime);
 
+static void test_mkgmtime(benchmark::State &state)
+{
+	for (auto _ : state) {
+		ts3::mkgmtime(&localTM);
+	}
+}
+BENCHMARK(test_mkgmtime);
+
 static void test_julian(benchmark::State &state)
 {
 	for (auto _ : state) {
