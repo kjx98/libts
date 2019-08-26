@@ -1,10 +1,9 @@
 #pragma once
-#ifndef	__TS3_MESSAGE__
-#define	__TS3_MESSAGE__
+#ifndef	__TS3_MESSAGE_HPP__
+#define	__TS3_MESSAGE_HPP__
 
-#include <string.h>
 #include <assert.h>
-#include "ts3/types.h"
+#include "types.h"
 
 namespace ts3 {
 class message_t {
@@ -13,13 +12,13 @@ public:
 		if (bValid_ != msg.bValid_) return false;
 		if (! bValid_ ) return true;
 		if (length_ != msg.length_) return false;
-		if (length_ == 0) return true;
+		if (ts3_unlikely(length_ == 0)) return true;
 		return memcmp(dataPtr_, msg.dataPtr_, length_) == 0;
 	}
 	// return true, if successfully marshal
 	bool marshal(u8 *buff, size_t& buflen) noexcept {
 		if ( !bValid_ ) return false;
-		if (buflen < sizeof(length_)+length_) return false;
+		if (ts3_unlikely(buflen < sizeof(length_)+length_)) return false;
 		buflen = length_;
 		auto lPtr = (u16 *)buff;
 		*lPtr = length_;
@@ -52,4 +51,4 @@ private:
 };
 
 }
-#endif	//	__TS3_MESSAGE__
+#endif	//	__TS3_MESSAGE_HPP__

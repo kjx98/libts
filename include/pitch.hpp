@@ -9,10 +9,12 @@
 
 namespace ts3 {
 namespace pitch {
+
+using namespace std;
 /*
  * Message types:
  */
-enum msgType {
+enum msgType : u8 {
 	MSG_SYSTEM_EVENT			= 'S',	/* Section 4.1. */
 	MSG_SYMBOL_DIRECTORY		= 'R',	/* Section 4.2.1. */
 	MSG_SYMBOL_TRADING_ACTION	= 'H',	/* Section 4.2.2. */
@@ -31,7 +33,7 @@ enum msgType {
 /*
  * System event codes:
  */
-enum eventCode {
+enum eventCode : u8 {
 	EVENT_START_OF_MESSAGES		= 'O',
 	EVENT_START_OF_SYSTEM_HOURS	= 'S',
 	EVENT_START_OF_MARKET_HOURS	= 'Q',
@@ -49,23 +51,32 @@ enum eventCode {
 class pitchMessage {
 public:
 	pitchMessage() = default;
-	pitchMessage(const u8 msgT, const uint16_t symIndex, const uint16_t trkNo,
+	pitchMessage(const u8 msgT, const uint16_t symIndex, const uint16_t trkN,
 				const int64_t timeUs) :
 			msgType_(msgT), symbolIndex_(symIndex),
-			trackingNo_(trkNo), timestamp_(timeUs%HourUs) {}
+			trackingNo_(trkN), timestamp_(timeUs%HourUs) {}
 	virtual ~pitchMessage() = default;
 	msgType	MessageType() { return (msgType)msgType_; }
 	virtual int	marshal(void *bufP, int bLen) = 0;
 	virtual	bool unmarshal(Serialization &sr) = 0;
-	virtual	bool unmarshal(void *bufP, int bLen) = 0;
-	uint16_t	SymbolIndex() { return symbolIndex_; }
-	uint16_t	TrackingNo() { return trackingNo_; }
-	uint32_t	TimeStamp() { return timestamp_; }
+	uint16_t	SymbolIndex() const { return symbolIndex_; }
+	uint16_t	TrackingNo() const { return trackingNo_; }
+	uint32_t	TimeStamp() const { return timestamp_; }
+	uint64_t	TimeStampUs(const time_t sec) const {
+		time_t	res=timestamp_ / ts3::duration::us;
+		int		us=timestamp_ % ts3::duration::us;
+		// Adjust to near hour
+		time_t	rem = (sec + 120) % 3600;
+		res += (sec+120) - rem;
+		uint64_t ret = (uint64_t)res * ts3::duration::us;
+		ret += us;
+		return ret;
+	}
 protected:
 	u8		msgType_;		// enum msgType
 	le16	symbolIndex_;	// symbol index
 	le16	trackingNo_;
-	le32	timestamp_;	// Hour based microseconds or nanoseconds
+	le32	timestamp_;	// Hour based microseconds, or nanoseconds in future
 	// following actual message payload
 };
 
@@ -73,33 +84,45 @@ protected:
 class pitchSystemEvent : public pitchMessage {
 public:
 	pitchSystemEvent() = default;
-	pitchSystemEvent(const eventCode evtCode, const uint16_t symIndex,
-		const uint16_t trackNo, const int64_t timeUs):
-		pitchMessage(MSG_SYSTEM_EVENT, symIndex, trackNo, timeUs),
-		eventCode_(evtCode), timeHours_(timeUs/HourUs) {}
-	friend bool operator==(const pitchSystemEvent &lhs, const pitchSystemEvent& rhs) {
+	pitchSystemEvent(const eventCode evtCode, const uint16_t trackNo,
+			const int64_t timeUs):
+		pitchMessage(MSG_SYSTEM_EVENT, 0, trackNo, timeUs),
+		eventCode_(evtCode), timeHours_(timeUs/HourUs)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const pitchSystemEvent &lhs, const pitchSystemEvent& rhs)
+	{
 		if (lhs.eventCode_ != rhs.eventCode_ || lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_) return false;
 		return (lhs.timeHours_ == rhs.timeHours_ && lhs.timestamp_ == rhs.timestamp_);
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, eventCode_, symbolIndex_, trackingNo_,
-			timeHours_, timestamp_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, eventCode_, symbolIndex_,
+			trackingNo_, timeHours_, timestamp_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode(eventCode_, symbolIndex_, trackingNo_, timeHours_,
-			timestamp_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode(eventCode_, symbolIndex_, trackingNo_,
+			timeHours_, timestamp_))) return false;
 		msgType_ = MSG_SYSTEM_EVENT;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
-	u8	EventCode() { return eventCode_; }
-	uint32_t	TimeHours() { return timeHours_; }
+	eventCode	EventCode() const { return (eventCode)eventCode_; }
+	uint32_t	TimeHours() const { return timeHours_; }
+	time_t	time() const noexcept {
+		time_t res = (time_t)timestamp_ / ts3::duration::us;
+		res += (time_t)timeHours_ * 3600;
+		return res;
+	}
 protected:
 	u8		eventCode_;	/* PITCH_EVENT_<code> */
 	le32	timeHours_;	// hours after 1970/1/1 00:00 UTC
@@ -109,19 +132,24 @@ protected:
 class pitchSymbolDirectory  : public pitchMessage {
 public:
 	pitchSymbolDirectory() = default;
-	pitchSymbolDirectory(const u8 mktC, const char *contr, const u8 classi,
-		const u8 prec, const uint16_t symIndex, const uint16_t trkNo,
+	pitchSymbolDirectory(const u8 mktC, const string &contr, const u8 classi,
+		const u8 prec, const uint16_t symIndex, const uint16_t trkN,
 		const int64_t timeUs, const uint32_t lotSize, const uint32_t turnMu,
 		const uint32_t lowerL, const uint32_t upperL):
-			pitchMessage(MSG_SYMBOL_DIRECTORY, symIndex, trkNo, timeUs),
+			pitchMessage(MSG_SYMBOL_DIRECTORY, symIndex, trkN, timeUs),
 			marketCategory_(mktC),
 			classification_(classi), precision_(prec),
 			roundLotSize_(lotSize), turnoverMulti_(turnMu),
-			lowerLimit_(lowerL), upperLimit_(upperL) {
+			lowerLimit_(lowerL), upperLimit_(upperL)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
 		memset(contract_, 0, sizeof(contract_));
-		strncpy(contract_, contr, sizeof(contract_)-1);
+		auto ll = contr.size();
+		if (ll > sizeof(contract_)) ll = sizeof(contract_);
+		memcpy(contract_, contr.data(), ll);
 	}
-	friend bool operator==(const pitchSymbolDirectory &lhs, const pitchSymbolDirectory& rhs) {
+	friend bool operator==(const pitchSymbolDirectory &lhs, const pitchSymbolDirectory& rhs)
+	{
 		if (lhs.marketCategory_ != rhs.marketCategory_ ||
 			lhs.classification_ != rhs.classification_ ||
 			lhs.precision_ != rhs.precision_ ||
@@ -132,17 +160,19 @@ public:
 			lhs.upperLimit_ != rhs.upperLimit_) return false;
 		return memcmp(lhs.contract_, rhs.contract_, sizeof(lhs.contract_)) == 0;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, marketCategory_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, marketCategory_))) return -1;
 		if (!sr.encodeBytes((const u8*)contract_, sizeof(contract_))) return -1;
 		if (!sr.encode(classification_, precision_, symbolIndex_, trackingNo_,
 			timestamp_, roundLotSize_, turnoverMulti_, lowerLimit_,
 			upperLimit_)) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode1b(marketCategory_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode1b(marketCategory_))) return false;
 		if (!sr.decodeBytes((u8 *)contract_, sizeof(contract_))) return false;
 		if (!sr.decode(classification_, precision_, symbolIndex_, trackingNo_,
             timestamp_, roundLotSize_, turnoverMulti_, lowerLimit_,
@@ -150,9 +180,18 @@ public:
 		msgType_ = MSG_SYMBOL_DIRECTORY;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
+	}
+	int		Digits() const { return precision_; }
+	string	SymbolName() const noexcept {
+		size_t sLen=sizeof(contract_);
+		if (contract_[sizeof(contract_)-1] == 0) {
+			sLen = strlen(contract_);
+		}
+		return string(contract_, sLen);
 	}
 protected:
 	u8		marketCategory_;
@@ -179,31 +218,39 @@ class symbolTradingAction  : public pitchMessage {
 public:
 	symbolTradingAction()=default;
 	symbolTradingAction(const tradingState state, const uint16_t reas,
-		const uint16_t symIndex, const uint16_t trkNo, const int64_t timeUs) :
-		pitchMessage(MSG_SYMBOL_TRADING_ACTION, symIndex, trkNo, timeUs),
-		tradingState_(state), reason_(reas) {}
-	friend bool operator==(const symbolTradingAction &lhs, const symbolTradingAction& rhs) {
+		const uint16_t symIndex, const uint16_t trkN, const int64_t timeUs) :
+		pitchMessage(MSG_SYMBOL_TRADING_ACTION, symIndex, trkN, timeUs),
+		tradingState_(state), reason_(reas)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const symbolTradingAction &lhs, const symbolTradingAction& rhs)
+	{
 		if (lhs.tradingState_ != rhs.tradingState_ || lhs.reason_ != rhs.reason_
 			|| lhs.symbolIndex_ != rhs.symbolIndex_ 
 			|| lhs.trackingNo_ != rhs.trackingNo_) return false;
 		return lhs.timestamp_ == rhs.timestamp_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, tradingState_, reason_, symbolIndex_,
-			trackingNo_, timestamp_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, tradingState_, reason_,
+			symbolIndex_, trackingNo_, timestamp_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode(tradingState_, reason_, symbolIndex_,
-			trackingNo_, timestamp_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode(tradingState_, reason_, symbolIndex_,
+			trackingNo_, timestamp_))) return false;
 		msgType_ = MSG_SYMBOL_TRADING_ACTION;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	tradingState TradingState() const { return (tradingState)tradingState_; }
 protected:
 	u8		tradingState_;
 	le16	reason_;
@@ -221,32 +268,48 @@ class addOrder  : public pitchMessage {
 public:
 	addOrder() = default;
 	addOrder(const buySellIndicator bs, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs, const uint64_t ordRef,
+		const uint16_t trkN, const int64_t timeUs, const uint64_t ordRef,
 		const int32_t qty, const int32_t prc):
-		pitchMessage(MSG_ADD_ORDER, symIndex, trkNo, timeUs),
-		buySell_(bs), orderRefNo_(ordRef), qty_(qty), price_(prc) {}
-	friend bool operator==(const addOrder &lhs, const addOrder& rhs) {
+		pitchMessage(MSG_ADD_ORDER, symIndex, trkN, timeUs),
+		buySell_(bs), orderRefNo_(ordRef), qty_(qty), price_(prc)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const addOrder &lhs, const addOrder& rhs)
+	{
 		if (lhs.buySell_ != rhs.buySell_ || lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_ || lhs.timestamp_ != rhs.timestamp_
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ ) return false;
 		return  lhs.qty_ == rhs.qty_ && lhs.price_ == rhs.price_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, buySell_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, price_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, buySell_, symbolIndex_,
+			trackingNo_, timestamp_, orderRefNo_, qty_, price_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode(buySell_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, price_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode(buySell_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, qty_, price_))) return false;
 		msgType_ = MSG_ADD_ORDER;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	uint64_t	RefNo() const { return orderRefNo_; }
+	bool	isBuy() const {
+		return buySell_ == PITCH_BUY_OPEN || buySell_ == PITCH_BUY_COVER;
+	}
+	bool	isOffset() const {
+		return buySell_ == PITCH_BUY_COVER || buySell_ == PITCH_SELL_CLOSE;
+	}
+	int32_t	Qty() const { return qty_; }
+	int32_t	Price() const { return price_; }
 protected:
 	u8		buySell_;
 	le64	orderRefNo_;
@@ -259,34 +322,45 @@ class orderExecuted  : public pitchMessage {
 public:
 	orderExecuted() = default;
 	orderExecuted(const char printA, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs, const uint64_t ordRef,
+		const uint16_t trkN, const int64_t timeUs, const uint64_t ordRef,
 		const int32_t qty, const uint64_t matchNo) :
-		pitchMessage(MSG_ORDER_EXECUTED, symIndex, trkNo, timeUs),
+		pitchMessage(MSG_ORDER_EXECUTED, symIndex, trkN, timeUs),
 		printable_(printA),  orderRefNo_(ordRef),
-		qty_(qty), matchNo_(matchNo) {}
-	friend bool operator==(const orderExecuted &lhs, const orderExecuted& rhs) {
+		qty_(qty), matchNo_(matchNo)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const orderExecuted &lhs, const orderExecuted& rhs)
+	{
 		if (lhs.printable_ != rhs.printable_ || lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_ || lhs.timestamp_ != rhs.timestamp_
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ || lhs.qty_ != rhs.qty_)
 			return false;
 		return lhs.matchNo_ == rhs.matchNo_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, printable_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, matchNo_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, printable_, symbolIndex_,
+			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( printable_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, matchNo_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( printable_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, qty_, matchNo_))) return false;
 		msgType_ = MSG_ORDER_EXECUTED;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	bool	Printable() const { return printable_ != 0; }
+	uint64_t	RefNo() const { return orderRefNo_; }
+	int32_t	Qty() const { return qty_; }
+	uint64_t	MatchNo() const { return matchNo_; }
 protected:
 	u8		printable_;
 	le64	orderRefNo_;
@@ -299,11 +373,14 @@ class orderEexecutedWithPrice  : public pitchMessage {
 public:
 	orderEexecutedWithPrice() = default;
 	orderEexecutedWithPrice(const char printA, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs, const uint64_t ordRef,
+		const uint16_t trkN, const int64_t timeUs, const uint64_t ordRef,
 		const int32_t qty, const uint64_t matchNo, const int32_t prc) :
-		pitchMessage(MSG_ORDER_EXECUTED_WITH_PRICE, symIndex, trkNo, timeUs),
+		pitchMessage(MSG_ORDER_EXECUTED_WITH_PRICE, symIndex, trkN, timeUs),
 		printable_(printA), 
-		orderRefNo_(ordRef), qty_(qty), matchNo_(matchNo), price_(prc) {}
+		orderRefNo_(ordRef), qty_(qty), price_(prc), matchNo_(matchNo)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
 	friend bool operator==(const orderEexecutedWithPrice &lhs, const orderEexecutedWithPrice& rhs)
 	{
 		if (lhs.printable_ != rhs.printable_ || lhs.symbolIndex_ != rhs.symbolIndex_
@@ -312,31 +389,39 @@ public:
 			return false;
 		return lhs.matchNo_ == rhs.matchNo_ && lhs.price_ == rhs.price_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, printable_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, matchNo_, price_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, printable_, symbolIndex_,
+			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_, price_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( printable_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, matchNo_, price_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( printable_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, qty_, matchNo_, price_))) return false;
 		msgType_ = MSG_ORDER_EXECUTED_WITH_PRICE;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	bool	Printable() const { return printable_ != 0; }
+	uint64_t	RefNo() const { return orderRefNo_; }
+	int32_t	Qty() const { return qty_; }
+	int32_t	Price() const { return price_; }
+	uint64_t	MatchNo() const { return matchNo_; }
 protected:
 	u8		printable_;
 	le64	orderRefNo_;
 	le32	qty_;		// executed Qty
-	le64	matchNo_;
 	le32	price_;		// executed price
+	le64	matchNo_;
 };
 
-enum cancelCode {
+enum cancelCode : u8 {
 	PITCH_CANCEL_BYUSER =	'U',
 	PITCH_CANCEL_ARB	=	'A',
 	PITCH_CANCEL_ODDLOT	=	'O',	// not normalization lots
@@ -350,10 +435,13 @@ class orderCancel  : public pitchMessage {
 public:
 	orderCancel() = default;
 	orderCancel(const cancelCode cCode, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs,
+		const uint16_t trkN, const int64_t timeUs,
 		const uint64_t ordRef, const int32_t qty):
-		pitchMessage(MSG_ORDER_CANCEL, symIndex, trkNo, timeUs),
-		cancelReason_(cCode), orderRefNo_(ordRef), qty_(qty) {}
+		pitchMessage(MSG_ORDER_CANCEL, symIndex, trkN, timeUs),
+		cancelReason_(cCode), orderRefNo_(ordRef), qty_(qty)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
 	friend bool operator==(const orderCancel &lhs, const orderCancel& rhs)
 	{
 		if (lhs.cancelReason_ != rhs.cancelReason_
@@ -363,22 +451,27 @@ public:
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ ) return false;
 		return lhs.qty_ == rhs.qty_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		if (!sr.encode(msgType_, cancelReason_, symbolIndex_, trackingNo_,
 			timestamp_, orderRefNo_, qty_)) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( cancelReason_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( cancelReason_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, qty_))) return false;
 		msgType_ = MSG_ORDER_CANCEL;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	uint64_t	RefNo() const { return orderRefNo_; }
+	int32_t	Qty() const { return qty_; }
 protected:
 	u8		cancelReason_;
 	le64	orderRefNo_;
@@ -390,9 +483,12 @@ class orderDelete  : public pitchMessage {
 public:
 	orderDelete() = default;
 	orderDelete(const cancelCode cCode, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs, const uint64_t ordRef):
-		pitchMessage(MSG_ORDER_DELETE, symIndex, trkNo, timeUs),
-		cancelReason_(cCode), orderRefNo_(ordRef){}
+		const uint16_t trkN, const int64_t timeUs, const uint64_t ordRef):
+		pitchMessage(MSG_ORDER_DELETE, symIndex, trkN, timeUs),
+		cancelReason_(cCode), orderRefNo_(ordRef)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
 	friend bool operator==(const orderDelete &lhs, const orderDelete& rhs)
 	{
 		if (lhs.cancelReason_ != rhs.cancelReason_
@@ -401,22 +497,26 @@ public:
 			|| lhs.timestamp_ != rhs.timestamp_) return false;
 		return lhs.orderRefNo_ == rhs.orderRefNo_;;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, cancelReason_, symbolIndex_, trackingNo_,
-			timestamp_, orderRefNo_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, cancelReason_, symbolIndex_,
+			trackingNo_, timestamp_, orderRefNo_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( cancelReason_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( cancelReason_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_))) return false;
 		msgType_ = MSG_ORDER_DELETE;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	uint64_t	RefNo() const { return orderRefNo_; }
 protected:
 	u8		cancelReason_;
 	le64	orderRefNo_;
@@ -426,12 +526,16 @@ protected:
 class orderReplace  : public pitchMessage {
 public:
 	orderReplace() = default;
-	orderReplace(const uint16_t symIndex, const uint16_t trkNo,
+	orderReplace(const uint16_t symIndex, const uint16_t trkN,
 		const int64_t timeUs, const uint64_t ordRef, const uint64_t NewOrdRef,
 		const int32_t qty, const int32_t prc):
-		pitchMessage(MSG_ORDER_REPLACE, symIndex, trkNo, timeUs),
-		orderRefNo_(ordRef), newOrderRefNo_(NewOrdRef), qty_(qty), price_(prc) {}
-	friend bool operator==(const orderReplace &lhs, const orderReplace& rhs) {
+		pitchMessage(MSG_ORDER_REPLACE, symIndex, trkN, timeUs),
+		orderRefNo_(ordRef), newOrderRefNo_(NewOrdRef), qty_(qty), price_(prc)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const orderReplace &lhs, const orderReplace& rhs)
+	{
 		if (lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_
 			|| lhs.timestamp_ != rhs.timestamp_
@@ -440,22 +544,29 @@ public:
 			|| lhs.qty_ != rhs.qty_) return false;
 		return lhs.price_ == rhs.price_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, newOrderRefNo_, qty_, price_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, newOrderRefNo_, qty_, price_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( symbolIndex_, trackingNo_, timestamp_, orderRefNo_,
-			newOrderRefNo_, qty_, price_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( symbolIndex_, trackingNo_, timestamp_,
+			orderRefNo_, newOrderRefNo_, qty_, price_))) return false;
 		msgType_ = MSG_ORDER_REPLACE;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	uint64_t	RefNo() const { return orderRefNo_; }
+	uint64_t	newRefNo() const { return newOrderRefNo_; }
+	int32_t	Qty() const { return qty_; }
+	int32_t	Price() const { return price_; }
 protected:
 	le64	orderRefNo_;
 	le64	newOrderRefNo_;
@@ -468,12 +579,16 @@ class msgTrade  : public pitchMessage {
 public:
 	msgTrade() = default;
 	msgTrade(const buySellIndicator bs, const uint16_t symIndex,
-		const uint16_t trkNo, const int64_t timeUs, const uint64_t ordRef,
+		const uint16_t trkN, const int64_t timeUs, const uint64_t ordRef,
 		const int32_t qty, const int32_t prc, const uint64_t mNo):
-		pitchMessage(MSG_TRADE, symIndex, trkNo, timeUs),
+		pitchMessage(MSG_TRADE, symIndex, trkN, timeUs),
 		buySell_(bs), orderRefNo_(ordRef), qty_(qty), price_(prc),
-		matchNo_(mNo) {}
-	friend bool operator==(const msgTrade &lhs, const msgTrade& rhs) {
+		matchNo_(mNo)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const msgTrade &lhs, const msgTrade& rhs)
+	{
 		if (lhs.buySell_ != rhs.buySell_ || lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_
 			|| lhs.timestamp_ != rhs.timestamp_
@@ -481,22 +596,35 @@ public:
 			|| lhs.qty_ != rhs.qty_) return false;
 		return lhs.price_ == rhs.price_ && lhs.matchNo_ == rhs.matchNo_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, buySell_, symbolIndex_, trackingNo_,
-			timestamp_, orderRefNo_, qty_, price_, matchNo_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, buySell_, symbolIndex_,
+			trackingNo_, timestamp_, orderRefNo_, qty_, price_, matchNo_))) return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode( buySell_, symbolIndex_, trackingNo_, timestamp_,
-			orderRefNo_, qty_, price_, matchNo_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode( buySell_, symbolIndex_, trackingNo_,
+			timestamp_, orderRefNo_, qty_, price_, matchNo_))) return false;
 		msgType_ = MSG_TRADE;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	bool	isBuy() const {
+		return buySell_ == PITCH_BUY_OPEN || buySell_ == PITCH_BUY_COVER;
+	}
+	bool	isOffset() const {
+		return buySell_ == PITCH_BUY_COVER || buySell_ == PITCH_SELL_CLOSE;
+	}
+	uint64_t	RefNo() const { return orderRefNo_; }
+	int32_t	Qty() const { return qty_; }
+	int32_t	Price() const { return price_; }
+	uint64_t	MatchNo() const { return matchNo_; }
 protected:
 	u8		buySell_;
 	le64	orderRefNo_;
@@ -509,41 +637,57 @@ protected:
 class crossTrade  : public pitchMessage {
 public:
 	crossTrade() = default;
-	crossTrade(const u8 ct, const uint16_t symIndex, const uint16_t trkNo,
+	crossTrade(const u8 ct, const uint16_t symIndex, const uint16_t trkN,
 		const int64_t timeUs, const int32_t qty, const int32_t prc,
-		const int32_t op, const uint64_t mNo):
-		pitchMessage(MSG_CROSS_TRADE, symIndex, trkNo, timeUs),
-		crossType_(ct), qty_(qty), price_(prc),
-		openInterest_(op), matchNo_(mNo) {}
-	friend bool operator==(const crossTrade &lhs, const crossTrade& rhs) {
+		const int32_t pclose, const int32_t op, const uint64_t mNo):
+		pitchMessage(MSG_CROSS_TRADE, symIndex, trkN, timeUs),
+		crossType_(ct), qty_(qty), price_(prc), pclose_(pclose),
+		openInterest_(op), matchNo_(mNo)
+	{
+		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+	}
+	friend bool operator==(const crossTrade &lhs, const crossTrade& rhs)
+	{
 		if (lhs.crossType_ != rhs.crossType_
 			|| lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_
 			|| lhs.timestamp_ != rhs.timestamp_
 			|| lhs.qty_ != rhs.qty_ || lhs.price_ != rhs.price_
+			|| lhs.pclose_ != rhs.pclose_
 			|| lhs.openInterest_ != rhs.openInterest_) return false;
 		return  lhs.matchNo_ == rhs.matchNo_;
 	}
-	int marshal(void *bufP, int bLen) {
+	int marshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
-		if (!sr.encode(msgType_, crossType_, symbolIndex_, trackingNo_,
-			timestamp_, qty_, price_, openInterest_, matchNo_)) return -1;
+		if (ts3_unlikely(!sr.encode(msgType_, crossType_, symbolIndex_,
+		trackingNo_, timestamp_, qty_, price_, pclose_, openInterest_, matchNo_)))
+			return -1;
 		return sr.Size();
 	}
-	bool unmarshal(Serialization &sr) {
-		if (!sr.decode(crossType_, symbolIndex_, trackingNo_, timestamp_,
-			qty_, price_, openInterest_, matchNo_)) return false;
+	bool unmarshal(Serialization &sr) noexcept
+	{
+		if (ts3_unlikely(!sr.decode(crossType_, symbolIndex_, trackingNo_,
+		timestamp_, qty_, price_, pclose_, openInterest_, matchNo_)))
+			return false;
 		msgType_ = MSG_CROSS_TRADE;
 		return true;
 	}
-	bool unmarshal(void *bufP, int bLen) {
+	bool unmarshal(void *bufP, int bLen) noexcept
+	{
 		Serialization	sr(bufP, bLen);
 		return unmarshal(sr);
 	}
+	int32_t	Qty() const { return qty_; }
+	int32_t	Price() const { return price_; }
+	int32_t	Pclose() const { return pclose_; }
+	int32_t	OpenInterest() const { return openInterest_; }
+	uint64_t	MatchNo() const { return matchNo_; }
 protected:
 	u8		crossType_;
 	le32	qty_;
 	le32	price_;
+	le32	pclose_;
 	le32	openInterest_;
 	le64	matchNo_;
 };
@@ -568,11 +712,12 @@ protected:
 	char	PriceVariationIndicator;
 };
 
-static inline	std::shared_ptr<pitchMessage> unmarshal(void *bufP, int bLen) {
+inline	std::shared_ptr<pitchMessage> unmarshal(const void *bufP, const int bLen) noexcept
+{
 	Serialization	sr(bufP, bLen);
 	std::shared_ptr<pitchMessage>	ret;
 	u8		msgT;
-	if (!sr.decode(msgT)) return ret;
+	if (ts3_unlikely(!sr.decode(msgT))) return ret;
 	std::shared_ptr<pitchMessage>	res;
 	switch((msgType)msgT) {
 	case MSG_SYSTEM_EVENT:
@@ -611,8 +756,11 @@ static inline	std::shared_ptr<pitchMessage> unmarshal(void *bufP, int bLen) {
 	case MSG_NOII:
 	case MSG_BROKEN_TRADE:
 		return ret;
+	default:
+		// NO WAY GO HERE
+		return ret;
 	}
-	if (!res->unmarshal(sr)) {
+	if (ts3_unlikely(!res->unmarshal(sr))) {
 		return ret;
 	}
 	return res;

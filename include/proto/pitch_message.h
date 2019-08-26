@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef	__TS3_PITCH__
-#define	__TS3_PITCH__
+#ifndef	__TS3_PITCH_MESSAGE_H__
+#define	__TS3_PITCH_MESSAGE_H__
 
 #include "ts3/types.h"
 
@@ -199,6 +199,7 @@ struct pitch_msg_cross_trade {
 	le32	Timestamp;
 	le32	Qty;
 	le32	CrossPrice;
+	le32	PrevClose;
 	le32	OpenInterest;
 	le64	MatchNumber;
 } __attribute__((packed));
@@ -229,4 +230,4 @@ struct pitch_msg_noii {
 	char	PriceVariationIndicator;
 } __attribute__((packed));
 
-#endif	// __TS3_PITCH__
+#endif	// __TS3_PITCH_MESSAGE_H__

@@ -1,6 +1,6 @@
 #pragma once
-#ifndef	__TS3_XDP__
-#define	__TS3_XDP__
+#ifndef	__TS3_XDP_MESSAGE_H__
+#define	__TS3_XDP_MESSAGE_H__
 
 #include "ts3/types.h"
 #include <stddef.h>
@@ -204,4 +204,4 @@ struct xdp_msg_imbalance {
 	le32			SSRFilingPrice;
 } __attribute__((packed));
 
-#endif	//	__TS3_XDP__
+#endif	//	__TS3_XDP_MESSAGE_H__

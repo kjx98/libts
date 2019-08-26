@@ -1,20 +1,19 @@
 #pragma once
-#ifndef	__TS3_JULIAN__
-#define	__TS3_JULIAN__
+#ifndef	__TS3_JULIAN_HPP__
+#define	__TS3_JULIAN_HPP__
 
-#include <stdint.h>
 #include <time.h>
-#include <cstring>
-#include <string>
 #include <chrono>
 #include <tuple>
+#include <string>
+#include "cdefs.h"
 
 namespace ts3 {
 
-#define	TS3_JULIAN_ADJUSTMENT	1721425
-#define	TS3_JULIAN_EPOCH		2440588
+//#define	TS3_JULIAN_ADJUSTMENT	1721425
+//#define	TS3_JULIAN_EPOCH		2440588
 
-constexpr int32_t	julian_Epoch = TS3_JULIAN_EPOCH;
+constexpr int32_t	julian_Epoch = 2440588;
 
 class JulianDay {
 public:
@@ -36,9 +35,13 @@ public:
 		jDN_ = newJDN(year, mon, mday);
 	}
 	uint32_t Uint32() noexcept {
+#if	__cplusplus >= 201703L
+		auto [y,m,d] = date(jDN_);
+#else
 		int	y,m,d;
 		std::tie(y,m,d) = date(jDN_);
-		if (y >= 0) {
+#endif
+		if (ts3_likely(y >= 0)) {
 			return y * 10000 + m*100 + d;
 		}
 		return 0;
@@ -53,10 +56,14 @@ public:
 		return std::to_string(jDN_);
 	}
 	std::string String() noexcept {
-		int	y,m,d;
 		char	buff[64];
+#if	__cplusplus >= 201703L
+		auto [y,m,d] = date(jDN_);
+#else
+		int	y,m,d;
 		std::tie(y,m,d) = date(jDN_);
-		if (y >= 0) {
+#endif
+		if (ts3_likely(y >= 0)) {
 			sprintf(buff, "%04d-%02d-%02d", y, m, d);
 		} else {
 			y = -y;
@@ -92,13 +99,14 @@ private:
 };
 
 
-inline struct tm*	gmtime(const time_t &timeV, struct tm *result) noexcept {
+forceinline struct tm*	gmtime(const time_t timeV, struct tm *result) noexcept
+{
 	if (result == nullptr) return result;
 	int	days=timeV/(3600*24);
 	int	hms=timeV % (3600*24);
 	JulianDay jd(days+julian_Epoch);
 	int	y,m,d;
-	if (!jd.getYMD(y,m,d)) return nullptr;
+	if (ts3_unlikely(jd.getYMD(y,m,d) == 0)) return nullptr;
 	result->tm_year = y-1900;
 	result->tm_mon = m-1;
 	result->tm_mday = d;
@@ -110,4 +118,4 @@ inline struct tm*	gmtime(const time_t &timeV, struct tm *result) noexcept {
 }
 
 }
-#endif	// __TS3_JULIAN__
+#endif	// __TS3_JULIAN_HPP__

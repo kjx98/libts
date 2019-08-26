@@ -1,9 +1,7 @@
 #pragma once
-#ifndef	__TS3_SERIALIZATION__
-#define	__TS3_SERIALIZATION__
+#ifndef	__TS3_SERIALIZATION_HPP__
+#define	__TS3_SERIALIZATION_HPP__
 
-#include <string.h>
-#include <cassert>
 #include <type_traits>
 #include "ts3/types.h"
 
@@ -15,13 +13,13 @@ public:
 	Serialization(const Serialization &) = default;
 	Serialization(const void *bufP, int bSize): bSize_(bSize),
 		bufp_((u8 *)bufP) {}
-	int	Size() { return off_; }
-	void *Data() { return bufp_; }
-	bool Error() { return err_; }
+	int	Size() const { return off_; }
+	void *Data() const { return bufp_; }
+	bool Error() const { return err_; }
 	template<size_t nSiz>bool encode(const pstring<nSiz> & ss) noexcept {
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		if (ss.size() == 0) return encode1b(0);
-		if (off_ + (int)ss.size() > bSize_) {
+		if (ts3_unlikely(off_ + (int)ss.size() > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -32,9 +30,9 @@ public:
 	}
 	template<typename T>bool encode(const T v) noexcept {
 		static_assert(std::is_integral<T>::value, "Integral required.");
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		const int	vLen=sizeof(T);
-		if (off_ + vLen > bSize_) {
+		if (ts3_unlikely(off_ + vLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -43,13 +41,14 @@ public:
 		return true;
 	}
 	template<typename T, typename... Args>bool encode(const T v,
-			const Args... args) noexcept {
-		if (!encode(v)) return false;
+			const Args... args) noexcept
+	{
+		if (ts3_unlikely(!encode(v))) return false;
 		return encode(args...);
 	}
 	bool encode1b(const u8 v) noexcept {
-		if (err_) return !err_;	
-		if (off_ >= bSize_) {
+		if (ts3_unlikely(err_)) return !err_;
+		if (ts3_unlikely(off_ >= bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -57,9 +56,9 @@ public:
 		return true;
 	}
 	bool encode(const std::string& ss) noexcept {
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		if (ss.size() == 0) return encode1b(0);
-		if (off_ + (int)ss.size() > bSize_) {
+		if (ts3_unlikely(off_ + (int)ss.size() > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -69,19 +68,19 @@ public:
 		return true;
 	}
 	bool encodeBytes(const u8 *buf, const int bLen) noexcept {
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		assert(bLen>0);
-		if (off_ + bLen > bSize_) {
+		if (ts3_unlikely(off_ + bLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
-		memcpy(bufp_+off_, buf, bLen); \
+		memcpy(bufp_+off_, buf, bLen);
 		off_ += bLen;
 		return true;
 	}
 	template<size_t nSiz>bool decode(pstring<nSiz> & ss) noexcept {
-		if (err_) return !err_;
-		if (off_ >= bSize_) {
+		if (ts3_unlikely(err_)) return !err_;
+		if (ts3_unlikely(off_ >= bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -90,7 +89,7 @@ public:
 			ss = pstring<nSiz>();
 			return true;
 		}
-		if (sLen > nSiz || off_ + (int)sLen > bSize_) {
+		if (ts3_unlikely(sLen > nSiz || off_ + (int)sLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -100,9 +99,9 @@ public:
 	}
 	template<typename T>bool decode(T& v) noexcept {
 		static_assert(std::is_integral<T>::value, "Integral required.");
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		const int	vLen=sizeof(T);
-		if (off_ + vLen > bSize_) {
+		if (ts3_unlikely(off_ + vLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -110,15 +109,16 @@ public:
 		off_ += vLen;
 		return true;
 	}
-	template<typename T, typename... Args>bool decode(T& v, Args &... args) noexcept {
+	template<typename T, typename... Args>bool decode(T& v, Args &... args) noexcept
+	{
 		decode(v);
-		if (err_) return !err_;	
+		if (ts3_unlikely(err_)) return !err_;
 		decode(args...);
 		return !err_;
 	}
 	bool decode1b(u8& v) noexcept {
-		if (err_) return !err_;	
-		if (off_ >= bSize_) {
+		if (ts3_unlikely(err_)) return !err_;
+		if (ts3_unlikely(off_ >= bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -126,8 +126,8 @@ public:
 		return true;
 	}
 	bool decode(std::string& ss) noexcept {
-		if (err_) return !err_;
-		if (off_ >= bSize_) {
+		if (ts3_unlikely(err_)) return !err_;
+		if (ts3_unlikely(off_ >= bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -136,7 +136,7 @@ public:
 			ss = std::string();
 			return true;
 		}
-		if (off_ + (int)sLen > bSize_) {
+		if (ts3_unlikely(off_ + (int)sLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
@@ -145,13 +145,13 @@ public:
 		return true;
 	}
 	bool decodeBytes(u8 *buf, const int bLen) noexcept {
-		if (err_) return !err_;
+		if (ts3_unlikely(err_)) return !err_;
 		assert(bLen>0);
-		if (off_ + bLen > bSize_) {
+		if (ts3_unlikely(off_ + bLen > bSize_)) {
 			err_ = true;
 			return !err_;
 		}
-		memcpy(buf, bufp_+off_, bLen); \
+		memcpy(buf, bufp_+off_, bLen);
 		off_ += bLen;
 		return true;
 	}
@@ -163,4 +163,4 @@ private:
 };
 
 }
-#endif	//	__TS3_SERIALIZATION__
+#endif	//	__TS3_SERIALIZATION_HPP_

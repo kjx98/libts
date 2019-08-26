@@ -48,7 +48,7 @@ static void test_marshalSysEvent(benchmark::State &state)
 	struct timespec	sp;
 	clock_gettime(CLOCK_MONOTONIC, &sp);
 	ts3::DateTime<ts3::duration::us> ut(sp);
-	pitch::pitchSystemEvent	sysEvt((pitch::eventCode)'O', 1, 2, ut.count());
+	pitch::pitchSystemEvent	sysEvt((pitch::eventCode)'O', 2, ut.count());
 	char	bb[128];
 	for (auto _ : state) {
 		sysEvt.marshal(bb, sizeof(bb));

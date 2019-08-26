@@ -1,7 +1,6 @@
 #pragma once
 
-#include "ts3/types.h"
-#include <string.h>
+#include "ts3/cdefs.h"
 #include "ts3/message.hpp"
 
 // for header, memcpy slower than 3 integer assign
@@ -21,7 +20,7 @@ public:
 		return bufLen >= sizeof(crayUDP_header);
 	}
 	crayUDP_header *decodeInline(void *buff, size_t bufLen) noexcept {
-		if (bufLen < sizeof(crayUDP_header)) return nullptr;
+		if (ts3_unlikely(bufLen < sizeof(crayUDP_header))) return nullptr;
 		crayUDP_header *tp=(crayUDP_header *)buff;
 #ifndef	BOOST_LITTLE_ENDIAN
 		tp->session_ = le32toh(tp->session_);
@@ -31,7 +30,7 @@ public:
 		return tp;
 	}
 	bool decode(void *buff, size_t bufLen) noexcept {
-		if (bufLen < sizeof(crayUDP_header)) return false;
+		if (ts3_unlikely(bufLen < sizeof(crayUDP_header))) return false;
 #ifdef	BOOST_LITTLE_ENDIAN11
 		memcpy(this, buff, sizeof(*this));
 #else
@@ -51,7 +50,7 @@ public:
 		return true;
 	}
 	bool encode(void *buff, size_t bufLen) noexcept {
-		if (bufLen < sizeof(crayUDP_header)) return false;
+		if (ts3_unlikely(bufLen < sizeof(crayUDP_header))) return false;
 #ifdef	BOOST_LITTLE_ENDIAN11
 		memcpy(buff, this, sizeof(*this));
 #else
@@ -68,7 +67,7 @@ public:
 		if (msgCount_ != head.msgCount_) return false;
 		return session_ == head.session_;
 	}
-	crayUDP_header() {
+	crayUDP_header() noexcept {
 		memset(this, 0, sizeof(*this));
 	}
 	crayUDP_header(const session_t sess, const u64 seqNo, const u16 nMsg):
@@ -90,23 +89,23 @@ private:
 
 
 // same struct as crayUDP_header
-using crayUDP_request = struct crayUDP_header;
+using crayUDP_request = crayUDP_header;
 
-static inline int marshal(u8 *buff, size_t& bufLen, message_t msgs[], int nMsgs)
+inline int marshal(u8 *buff, size_t& bufLen, message_t msgs[], int nMsgs) noexcept 
 {
 	auto n = bufLen;
 	int	i;
 	bufLen = 0;
 	for (i=0;i<nMsgs;i++) {
 		auto mLen = msgs[i].size();
-		if (bufLen+sizeof(u16)+mLen > n) break;
+		if (ts3_unlikely(bufLen+sizeof(u16)+mLen > n)) break;
 #ifdef	BOOST_LITTLE_ENDIAN
 		*(u16 *)(buff+bufLen) = mLen;
 #else
 		*(u16 *)(buff+bufLen) = htole16(mLen);
 #endif
 		bufLen += sizeof(u16);
-		if (mLen > 0) {
+		if (ts3_likely(mLen > 0)) {
 			memcpy(buff+bufLen, msgs[i].data(), mLen);
 			bufLen += mLen;
 		}
@@ -114,13 +113,13 @@ static inline int marshal(u8 *buff, size_t& bufLen, message_t msgs[], int nMsgs)
 	return i;
 }
 
-static inline int unmarshal(u8 *buff, size_t bufLen, message_t msgs[], int nMsgs)
+inline int unmarshal(u8 *buff, size_t bufLen, message_t msgs[], int nMsgs) noexcept 
 {
-	if (bufLen == 0) return 0;
+	if (ts3_unlikely(bufLen == 0)) return 0;
 	int i=0;
 	size_t off;
 	for(off=0;off<bufLen;) {
-		if (off + sizeof(u16) > bufLen) return -1;
+		if (ts3_unlikely(off + sizeof(u16) > bufLen)) return -1;
 		u16 length;
 #ifdef	BOOST_LITTLE_ENDIAN
 		length = *(u16 *)(buff+off);
@@ -131,12 +130,12 @@ static inline int unmarshal(u8 *buff, size_t bufLen, message_t msgs[], int nMsgs
 		//length = le16toh(*(u16 *)(buff+off));
 #endif
 		off += sizeof(u16);
-		if (off + length > bufLen) return -1;
+		if (ts3_unlikely(off + length > bufLen)) return -1;
 		msgs[i++].unmarshal(buff+off, length);
 		off += length;
 		if (i == nMsgs) break;
 	}
-	if (off != bufLen) return -1;
+	if (ts3_unlikely(off != bufLen)) return -1;
 	return i;
 }
 

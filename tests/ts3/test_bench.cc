@@ -162,7 +162,7 @@ BENCHMARK(test_ts3gmtime);
 
 static void test_localtime(benchmark::State &state)
 {
-	auto tt = time(0);
+	auto tt = time(nullptr);
 	struct tm tmss;
 	for (auto _ : state) {
 		localtime_r(&tt, &tmss);
@@ -173,14 +173,13 @@ BENCHMARK(test_localtime);
 static void test_klocaltime(benchmark::State &state)
 {
 #ifdef	__linux__
-	auto tt = time(0)-timezone;
+	auto tt = time(nullptr);
 #else
 	// FIXME: Asia/Shanghai
-	auto tt = time(0)+28800;
+	auto tt = time(nullptr)+28800;
 #endif
-	struct tm tmss;
 	for (auto _ : state) {
-		gmtime_r(&tt, &tmss);
+		klocaltime(tt);
 	}
 }
 BENCHMARK(test_klocaltime);

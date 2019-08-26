@@ -1,8 +1,7 @@
 #pragma once
-#ifndef	__TS3_TYPES__
-#define	__TS3_TYPES__
+#ifndef	__TS3_TYPES_H__
+#define	__TS3_TYPES_H__
 
-#include <cassert>
 #ifdef	__linux__
 #include <endian.h>
 #if	__BYTE_ORDER == __LITTLE_ENDIAN
@@ -19,22 +18,17 @@
 #include <boost/detail/endian.hpp>
 #endif
 #endif	//	__linux__
-
-// force MSVC using utf8 output
-#ifdef	_MSC_VER
-#pragma execution_character_set("UTF-8")
-#endif
-
 #include <stdint.h>
 #include <cstring>
 #include <string>
+#include "cdefs.h"
+
 
 #ifdef __CHECKER__
 #define bitwise __attribute__((bitwise))
 #else
 #define bitwise
 #endif
-
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -83,7 +77,7 @@ private:
 } __attribute__((packed));
 
 
-uint32_t inline __hash(const char* data, size_t len)
+uint32_t forceinline __hash(const char* data, size_t len)
 {
 	uint32_t	hash(2166136261);
 	for (size_t i=0;i<len;++i) {
@@ -105,7 +99,7 @@ public:
 		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		size_t ll = sLen;
 		if (ll == 0) ll = strlen(ss);
-		if (ll > nSize-1) ll = nSize-1;
+		if (ts3_unlikely(ll > nSize-1)) ll = nSize-1;
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss, ll);
 	}
@@ -113,7 +107,7 @@ public:
 	{
 		static_assert(nSize > 0 && nSize < 256, "size must between 0 and 255");
 		auto ll = ss.size();
-		if (ll > nSize-1) ll = nSize-1;
+		if (ts3_unlikely(ll > nSize-1)) ll = nSize-1;
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
@@ -138,11 +132,13 @@ public:
 	}
 	friend bool operator==(const pstring &lhs, const std::string& rhs) noexcept
 	{
-		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+		if (ts3_unlikely(lhs.size() != rhs.size())) return false;
+		return memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 	}
 	friend bool operator==(const std::string &lhs, const pstring& rhs) noexcept
 	{
-		return lhs.size() == rhs.size() && memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+		if (ts3_unlikely(lhs.size() != rhs.size())) return false;
+		return memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 	}
 	friend bool operator<(const pstring& lhs, const pstring& rhs) noexcept
 	{
@@ -154,4 +150,4 @@ private:
 
 }
 
-#endif	// __TS3_TYPES__
+#endif	// __TS3_TYPES_H__

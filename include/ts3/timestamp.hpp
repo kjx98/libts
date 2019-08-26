@@ -1,30 +1,30 @@
 #pragma once
-#ifndef	__TS3_TIMESTAMP__
-#define	__TS3_TIMESTAMP__
+#ifndef	__TS3_TIMESTAMP_HPP__
+#define	__TS3_TIMESTAMP_HPP__
 
-#include <stdint.h>
 #include <time.h>
 #include <chrono>
 #include <thread>
 #include <memory>
 #include <tuple>
+#include "types.h"
 
 #define	TS3_TIME_MILLISECOND	1000
 #define	TS3_TIME_MICROSECOND	1000000
 #define	TS3_TIME_NANOSECOND		1000000000L
 
-bool inline	operator==(const tm& left, const tm& right) {
+bool forceinline	operator==(const tm& left, const tm& right) {
 	if (left.tm_year != right.tm_year || left.tm_mon != right.tm_mon ||
 		left.tm_mday != right.tm_mday || left.tm_hour != right.tm_hour)
 		return false;
 	return (left.tm_min == right.tm_min && left.tm_sec == right.tm_sec);
 }
 
-bool inline	operator==(const timespec& left, const timespec& right) {
+bool forceinline	operator==(const timespec& left, const timespec& right) {
 	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
 }
 
-inline timespec& operator+=(timespec& tt, const timespec &tv) {
+forceinline timespec& operator+=(timespec& tt, const timespec &tv) {
 	tt.tv_sec += tv.tv_sec;
 	tt.tv_nsec += tv.tv_nsec;
 	if (tt.tv_nsec >= TS3_TIME_NANOSECOND) {
@@ -34,7 +34,7 @@ inline timespec& operator+=(timespec& tt, const timespec &tv) {
 	return tt;
 }
 
-inline timespec& operator-=(timespec& tt, const timespec &tv) {
+forceinline timespec& operator-=(timespec& tt, const timespec &tv) {
 	tt.tv_sec -= tv.tv_sec;
 	tt.tv_nsec -= tv.tv_nsec;
 	if (tt.tv_nsec < 0) {
@@ -47,27 +47,38 @@ inline timespec& operator-=(timespec& tt, const timespec &tv) {
 
 namespace ts3 {
 
-inline time_t mkgmtime(const struct tm* stm) {
-   static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-   long     year = 1900 + stm->tm_year + stm->tm_mon / 12;
-   time_t   result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
-   result += (year - 1968) / 4;
-   result -= (year - 1900) / 100;
-   result += (year - 1600) / 400;
-   if ( (year % 4) == 0
-   &&  ((year % 100) != 0 || (year % 400) == 0)
-   &&  (stm->tm_mon % 12) < 2 )
-      --result;
-   result += stm->tm_mday - 1;
-   result *= 24;
-   result += stm->tm_hour;
-   result *= 60;
-   result += stm->tm_min;
-   result *= 60;
-   result += stm->tm_sec;
-   //if (stm->tm_isdst == 1)
-   //   result -= 3600;
-   return (result);
+forceinline struct tm* klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
+{
+	static	tm	tms;
+	if (stm == nullptr) stm = &tms;
+#ifdef	__linux__
+	time_t tt = tval - timezone;
+#else
+	time_t tt = tval;
+#endif
+	return gmtime_r(&tt, stm);
+}
+
+forceinline time_t mkgmtime(const struct tm* stm) noexcept {
+	static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+	long     year = 1900 + stm->tm_year + stm->tm_mon / 12;
+	time_t   result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
+	result += (year - 1968) / 4;
+	result -= (year - 1900) / 100;
+	result += (year - 1600) / 400;
+	if ( (year % 4) == 0 &&  ((year % 100) != 0 || (year % 400) == 0)
+	&&  (stm->tm_mon % 12) < 2 )
+		--result;
+	result += stm->tm_mday - 1;
+	result *= 24;
+	result += stm->tm_hour;
+	result *= 60;
+	result += stm->tm_min;
+	result *= 60;
+	result += stm->tm_sec;
+	//if (stm->tm_isdst == 1)
+	//   result -= 3600;
+	return (result);
 }
 
 // CLOCK_MONOTONIC not compatible with chrono, even steady_clock
@@ -75,7 +86,7 @@ inline time_t mkgmtime(const struct tm* stm) {
 #define	TS3_SYSCLOCK	CLOCK_REALTIME
 
 namespace duration {
-enum duration_t {
+enum duration_t : int64_t {
 	ms	= TS3_TIME_MILLISECOND,
 	us = TS3_TIME_MICROSECOND,
 	ns = TS3_TIME_NANOSECOND,
@@ -103,7 +114,7 @@ public:
 		nanosec = tp.tv_nsec;
 	}
 	timeval& operator=(const timeval &tv) noexcept {
-		if (this != &tv) {
+		if (ts3_likely(this != &tv)) {
 			sec = tv.sec;
 			nanosec = tv.nanosec;
 		}
@@ -113,7 +124,8 @@ public:
 		return sec == tv.sec && nanosec == tv.nanosec;
 	}
 	bool operator<(const timeval &tv) {
-		return (sec == tv.sec)? (nanosec < tv.nanosec) : (sec < tv.sec);
+		return ts3_unlikely(sec == tv.sec)? (nanosec < tv.nanosec)
+					: (sec < tv.sec);
 	}
 	// return diff in seconds
 	friend double operator-(const timeval& lhs, const timeval& rhs) noexcept
@@ -139,7 +151,7 @@ private:
 };
 
 
-int64_t inline operator-(const timespec& left, const timespec& right) noexcept {
+int64_t forceinline operator-(const timespec& left, const timespec& right) noexcept {
 	int64_t	res=(left.tv_sec - right.tv_sec) * duration::ns;
 	res += left.tv_nsec - right.tv_nsec;
 	return res;
@@ -164,7 +176,7 @@ public:
 	sysclock(const sysclock& sc): clockType_(sc.clockType_),
 	   	timeAdj_(sc.timeAdj_)	{}
 	void setTime(const time_t tt) noexcept {
-		if (clockType_ != simClock) return; //	error
+		if (ts3_unlikely(clockType_ != simClock)) return; //	error
 		struct timespec	sp_;
 		clock_gettime(TS3_SYSCLOCK, &sp_);
 		timeAdj_->tv_sec = tt;
@@ -172,7 +184,7 @@ public:
 		*timeAdj_ -= sp_;
 	}
 	void setTime(const class timeval& tv) noexcept {
-		if (clockType_ != simClock) return; //	error
+		if (ts3_unlikely(clockType_ != simClock)) return; //	error
 		struct timespec	sp_;
 		clock_gettime(TS3_SYSCLOCK, &sp_);
 		timeAdj_->tv_sec = tv.seconds();
@@ -218,7 +230,7 @@ inline int64_t timespec_deltaMs(const timespec &before, const timespec &after)
 
 // "busy sleep" while suggesting that other threads run
 // for a small amount of time
-void inline	usleep(int64_t us) noexcept
+void forceinline	usleep(int64_t us) noexcept
 {
 	timespec	tSt, tp;
 	clock_gettime(TS3_SYSCLOCK, &tSt);
@@ -227,7 +239,7 @@ void inline	usleep(int64_t us) noexcept
         std::this_thread::yield();
         //sched_yield(); // same effect as prev line
 		clock_gettime(TS3_SYSCLOCK, &tp);
-    } while (tp - tSt < intV);
+    } while (ts3_likely(tp - tSt < intV));
 }
 
 class subHour {
@@ -235,7 +247,7 @@ public:
 	subHour() = default;
 	subHour(const subHour& ) = default;
 	explicit subHour(const uint32_t uTime): tv_(uTime) {
-		if (tv_ >= HourUs) tv_ -= HourUs;
+		if (ts3_unlikely(tv_ >= HourUs)) tv_ -= HourUs;
 	}
 	subHour(int64_t uT): tv_(uT % HourUs) {}
 	subHour(uint8_t min, uint8_t sec, uint32_t uS=0) {
@@ -283,7 +295,7 @@ public:
 		_baseTime = tp.tv_sec - offt;
 	}
 	timestamp & operator=(const timestamp &ts) {
-		if (this != &ts) {
+		if (ts3_likely(this != &ts)) {
 			_res = ts._res;
 			_baseTime = ts._baseTime;
 			tz_ = ts.tz_;
@@ -359,6 +371,15 @@ public:
 		time_ = baseTime * dur;
 		time_ += off;
 	}
+	bool operator==(const DateTime &dt) {
+		return time_ == dt.time_;
+	}
+	explicit operator bool () {
+		return time_ != 0;
+	}
+	friend bool operator==(const DateTime &dt, std::nullptr_t) {
+		return dt.time_ == 0;
+	}
 	int64_t count() { return time_; }
 	time_t	to_time_t() { return time_/dur; }
 	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
@@ -370,8 +391,8 @@ public:
 		return gmtime_r(&sec_, bufp);
 	};
 	char *String(char *bufp) noexcept {
-		if (bufp == nullptr) return nullptr;
-		if (time_ == 0) { *bufp = 0; return bufp; }
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
 		auto tmp = tmPtr();
 		int	msec_ = time_ % dur;
 		// strftime without milliseconds
@@ -422,15 +443,15 @@ public:
 	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
 #ifdef	__linux__
 		time_t	secs = sec_ - timezone;
-		if (bufp == nullptr) return gmtime(&secs);
+		if (ts3_unlikely(bufp == nullptr)) return gmtime(&secs);
 		return gmtime_r(&secs, bufp);
 #else
-		if (bufp == nullptr) return gmtime(&sec_);
+		if (ts3_unlikely(bufp == nullptr)) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
 #endif
 	};
 	char *String(char *bufp) noexcept {
-		if (bufp == nullptr) return nullptr;
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
 		auto tmp = tmPtr();
 	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
 			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
@@ -444,4 +465,4 @@ private:
 };
 
 }
-#endif	// __TS3_TIMESTAMP__
+#endif	// __TS3_TIMESTAMP_HPP__

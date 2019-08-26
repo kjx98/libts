@@ -25,7 +25,7 @@ TEST(testTS3, TestSystemEvent)
 	struct timespec	sp;
 	clock_gettime(CLOCK_MONOTONIC, &sp);
 	ts3::DateTime<ts3::duration::us> ut(sp);
-	ts3::pitch::pitchSystemEvent	sysEvt((eventCode)'O', 1, 2, ut.count());
+	ts3::pitch::pitchSystemEvent	sysEvt((eventCode)'O', 2, ut.count());
 	char	bb[128];
 	EXPECT_NE(sizeof(sysEvt), sizeof(struct pitch_msg_system_event));
 	cerr << "sizeof pitch_msg_system_event: " << sizeof(pitch_msg_system_event) << std::endl;
@@ -226,7 +226,7 @@ TEST(testTS3, TestCrossTrade)
 	struct timespec	sp;
 	clock_gettime(CLOCK_MONOTONIC, &sp);
 	ts3::DateTime<ts3::duration::us> ut(sp);
-	crossTrade	symTrade((u8)'X', 1, 2, ut.count(), 11, 100, 50100, 20190531001);
+	crossTrade	symTrade((u8)'X', 1, 2, ut.count(), 11, 50100, 50000, 100, 20190531001);
 	char	bb[128];
 	// just eq, usual not
 	EXPECT_NE(sizeof(symTrade), sizeof(struct pitch_msg_cross_trade));
