@@ -12,6 +12,7 @@
 #include "ts3/julian.hpp"
 #include "ts3/serialization.hpp"
 #include "ts3/priceType.hpp"
+#include "ts3/message.hpp"
 #include <gtest/gtest.h>
 
 using namespace std;
@@ -295,6 +296,12 @@ TEST(testTS3, TestPString)
 	EXPECT_EQ(ps, std::string(ss));
 	EXPECT_EQ(std::string(ss), ps);
 	EXPECT_EQ(ps.String(), ss);
+}
+
+TEST(testTS3, TestMessage)
+{
+	ts3::CLmessage	clm;
+	EXPECT_EQ(sizeof(clm), 64);
 }
 
 int main(int argc,char *argv[])
