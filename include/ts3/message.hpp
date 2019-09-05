@@ -20,9 +20,9 @@ public:
 		if ( ts3_unlikely(!bValid_) ) return false;
 		if (ts3_unlikely(buflen < sizeof(length_)+length_)) return false;
 		buflen = length_;
-		auto lPtr = (u16 *)buff;
-		*lPtr = length_;
-		memcpy(buff+sizeof(length_), dataPtr_, length_);
+		u16	bLen = htole16(length_);
+		memcpy(buff, &bLen, sizeof(u16));
+		memcpy(buff+sizeof(u16), dataPtr_, length_);
 		return true;
 	}
 	bool unmarshal(void *buff, size_t buflen) noexcept {
@@ -77,11 +77,30 @@ public:
 	CLmessage(const CLmessage &msg) noexcept : length_(msg.length_) {
 		static_assert(sizeof(msg) == 64, "sizeof CLmessage MUST be 64");
 		//if (ts3_unlikely(length_ > sizeof(buf_))) length_ = sizeof(buf_);
-		memcpy(buf_, msg.buf_, length_);
+		if (ts3_likely(length_ > 0)) memcpy(buf_, msg.buf_, length_);
 	}
 	CLmessage(const void *data, const size_t ll) noexcept : length_(ll) {
 		if (ts3_unlikely(length_ > sizeof(buf_))) length_ = sizeof(buf_);
-		memcpy(buf_, data, length_);
+		if (ts3_likely(length_ > 0)) memcpy(buf_, data, length_);
+	}
+	// return true, if successfully marshal
+	bool marshal(u8 *buff, size_t& buflen) noexcept {
+		if ( ts3_unlikely(length_ == 0) ) return false;
+		if (ts3_unlikely(buflen < sizeof(length_)+length_)) return false;
+#ifdef	BOOST_LITTLE_ENDIAN11
+		memcpy(buff, &length_, length_+sizeof(length_));
+#else
+		u16	bLen = htole16(length_);
+		memcpy(buff, &bLen, sizeof(u16));
+		memcpy(buff+sizeof(u16), buf_, length_);
+#endif
+		return true;
+	}
+	bool unmarshal(void *buff, size_t buflen) noexcept {
+		length_ = buflen;
+		if ( ts3_unlikely(length_ >= sizeof(buf_)) ) return false;
+		if ( ts3_likely(length_>0) ) memcpy(buf_, buff, length_);
+		return true;
 	}
 private:
 	u16		length_ = 0;

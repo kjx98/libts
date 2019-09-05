@@ -47,7 +47,8 @@ forceinline timespec& operator-=(timespec& tt, const timespec &tv) {
 
 namespace ts3 {
 
-forceinline struct tm* klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
+forceinline struct tm*
+klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 {
 	static	tm	tms;
 	if (stm == nullptr) stm = &tms;
@@ -151,7 +152,8 @@ private:
 };
 
 
-int64_t forceinline operator-(const timespec& left, const timespec& right) noexcept {
+int64_t forceinline
+operator-(const timespec& left, const timespec& right) noexcept {
 	int64_t	res=(left.tv_sec - right.tv_sec) * duration::ns;
 	res += left.tv_nsec - right.tv_nsec;
 	return res;

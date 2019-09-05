@@ -40,8 +40,8 @@ public:
 		off_ += vLen;
 		return true;
 	}
-	template<typename T, typename... Args>bool encode(const T v,
-			const Args... args) noexcept
+	template<typename T, typename... Args>
+	bool encode(const T v, const Args... args) noexcept
 	{
 		if (ts3_unlikely(!encode(v))) return false;
 		return encode(args...);
@@ -109,7 +109,8 @@ public:
 		off_ += vLen;
 		return true;
 	}
-	template<typename T, typename... Args>bool decode(T& v, Args &... args) noexcept
+	template<typename T, typename... Args>bool
+	decode(T& v, Args &... args) noexcept
 	{
 		decode(v);
 		if (ts3_unlikely(err_)) return !err_;

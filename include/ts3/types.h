@@ -111,7 +111,7 @@ public:
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
-#ifdef	__linux__
+#if	!defined(__linux__) || !defined(__clang__)
 	struct hash
 	{
 		size_t operator()(pstring const &s) const noexcept {
