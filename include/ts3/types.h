@@ -111,15 +111,13 @@ public:
 		sBuf_[0] = ll;
 		memcpy(sBuf_+1, ss.data(), ll);
 	}
-#if	!defined(__linux__) || !defined(__clang__)
 	struct hash
 	{
 		size_t operator()(pstring const &s) const noexcept {
 			//return std::hash<std::string>{}(s.String());
-			return __hash(data(), size());
+			return ts3::__hash(s.data(), s.size());
 		}
 	};
-#endif
 	std::string String() const noexcept {
 		return std::string(data(), size());
 	}

@@ -9,8 +9,10 @@ namespace ts3
 {
 
 namespace fixed {
-constexpr double dMulti[]={0.01,0.1,1.0,10.0,100.0,1000.0,10000.0,100000.0,1000000.0};
-constexpr double dDiv[]={100.0,10.0,1.0,0.1,0.01,0.001,0.0001,0.00001,0.000001};
+constexpr double dMulti[]={0.01,0.1,1.0,10.0,100.0,1000.0,10000.0,
+		100000.0,1000000.0};
+constexpr double dDiv[]={100.0,10.0,1.0,0.1,0.01,0.001,0.0001,
+		0.00001,0.000001};
 constexpr int	digitMax=6,digitMin=-2;
 
 forceinline double digitMulti(int ndig) noexcept {

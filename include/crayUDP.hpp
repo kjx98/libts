@@ -24,6 +24,7 @@ public:
 		crayUDP_header *tp=(crayUDP_header *)buff;
 #ifndef	BOOST_LITTLE_ENDIAN
 		tp->session_ = le32toh(tp->session_);
+		tp->crc16_ = le16toh(tp->crc16_);
 		tp->msgCount_ = le16toh(tp->msgCount_);
 		tp->seqNo_ = le64toh(tp->seqNo_);
 #endif
@@ -36,6 +37,7 @@ public:
 #else
 		crayUDP_header *tp=(crayUDP_header *)buff;
 		session_  = le32toh(tp->session_);
+		crc16_ = le16toh(tp->crc16_);
 		msgCount_ = le16toh(tp->msgCount_);
 		seqNo_ = le64toh(tp->seqNo_);
 #endif
@@ -44,6 +46,7 @@ public:
 	bool encodeInline() noexcept {
 #ifndef	BOOST_LITTLE_ENDIAN11
 		session_  = htole32(session_);
+		crc16_ = htole16(crc16_);
 		msgCount_ = htole16(msgCount_);
 		seqNo_ = htole64(seqNo_);
 #endif
@@ -56,8 +59,8 @@ public:
 #else
 		crayUDP_header *tp=(crayUDP_header *)buff;
 		tp->session_ = htole32(session_);
-		tp->trackId_ = 0;
 		tp->seqNo_ = htole64(seqNo_);
+		tp->crc16_ = htole16(crc16_);
 		tp->msgCount_ = htole16(msgCount_);
 #endif
 		return true;
@@ -72,17 +75,23 @@ public:
 	}
 	crayUDP_header(const session_t sess, const u64 seqNo, const u16 nMsg):
 		session_(sess),
-		trackId_(0),
+		crc16_(0),
 		msgCount_(nMsg),
 		seqNo_(seqNo)
 	{
 	}
-	inline session_t session() { return session_; }
-	inline u16 msgCnt() { return msgCount_; }
-	inline u64 seqNo () { return seqNo_; }
+	inline session_t session() const { return session_; }
+	inline u16 msgCnt() const { return msgCount_; }
+	u16	checkSum() const { return crc16_; }
+	bool setCheckSum(const u16 newCheckSum) noexcept {
+		if (crc16_ != 0) return false;
+		crc16_ = newCheckSum;
+		return true;
+	}
+	inline u64 seqNo () const { return seqNo_; }
 private:
 	session_t	session_;	// le32
-	u16			trackId_;	// reserved
+	u16			crc16_;		// reserved
 	u16			msgCount_;	// le16
 	u64			seqNo_;		// le64
 } __attribute__((packed));
@@ -91,19 +100,17 @@ private:
 // same struct as crayUDP_header
 using crayUDP_request = crayUDP_header;
 
-inline int marshal(u8 *buff, size_t& bufLen, message_t msgs[], int nMsgs) noexcept 
+template<typename MsgType> forceinline
+int marshal(u8 *buff, size_t& bufLen, MsgType msgs[], int nMsgs) noexcept 
 {
 	auto n = bufLen;
 	int	i;
 	bufLen = 0;
-	for (i=0;i<nMsgs;i++) {
+	for (i=0;i<nMsgs;++i) {
 		auto mLen = msgs[i].size();
 		if (ts3_unlikely(bufLen+sizeof(u16)+mLen > n)) break;
-#ifdef	BOOST_LITTLE_ENDIAN
-		*(u16 *)(buff+bufLen) = mLen;
-#else
-		*(u16 *)(buff+bufLen) = htole16(mLen);
-#endif
+		u16 mm = htole16(mLen);
+		memcpy(buff+bufLen, &mm, sizeof(mm));
 		bufLen += sizeof(u16);
 		if (ts3_likely(mLen > 0)) {
 			memcpy(buff+bufLen, msgs[i].data(), mLen);
@@ -113,7 +120,8 @@ inline int marshal(u8 *buff, size_t& bufLen, message_t msgs[], int nMsgs) noexce
 	return i;
 }
 
-inline int unmarshal(u8 *buff, size_t bufLen, message_t msgs[], int nMsgs) noexcept 
+template<typename MsgType> forceinline
+int unmarshal(u8 *buff, size_t bufLen, MsgType msgs[], int nMsgs) noexcept 
 {
 	if (ts3_unlikely(bufLen == 0)) return 0;
 	int i=0;
@@ -121,17 +129,13 @@ inline int unmarshal(u8 *buff, size_t bufLen, message_t msgs[], int nMsgs) noexc
 	for(off=0;off<bufLen;) {
 		if (ts3_unlikely(off + sizeof(u16) > bufLen)) return -1;
 		u16 length;
-#ifdef	BOOST_LITTLE_ENDIAN
-		length = *(u16 *)(buff+off);
-#else
 		// it's better use tmp, since RISC u16 must 16bits aligned
 		memcpy((void *)&length, buff+off, sizeof(length));
 		length = le16toh(length);
-		//length = le16toh(*(u16 *)(buff+off));
-#endif
 		off += sizeof(u16);
 		if (ts3_unlikely(off + length > bufLen)) return -1;
-		msgs[i++].unmarshal(buff+off, length);
+		if (! msgs[i].unmarshal(buff+off, length) ) return -1;
+		++i;
 		off += length;
 		if (i == nMsgs) break;
 	}

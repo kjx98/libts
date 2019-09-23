@@ -11,6 +11,7 @@ namespace ts3 {
 namespace pitch {
 
 using namespace std;
+constexpr int	pMsgSize=64;
 /*
  * Message types:
  */
@@ -58,7 +59,9 @@ public:
 	virtual ~pitchMessage() = default;
 	msgType	MessageType() { return (msgType)msgType_; }
 	virtual int	marshal(void *bufP, int bLen) = 0;
+#ifdef	_NTEST
 	virtual	bool unmarshal(Serialization &sr) = 0;
+#endif
 	uint16_t	SymbolIndex() const { return symbolIndex_; }
 	uint16_t	TrackingNo() const { return trackingNo_; }
 	uint32_t	TimeStamp() const { return timestamp_; }
@@ -89,13 +92,15 @@ public:
 		pitchMessage(MSG_SYSTEM_EVENT, 0, trackNo, timeUs),
 		eventCode_(evtCode), timeHours_(timeUs/HourUs)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const pitchSystemEvent &lhs, const pitchSystemEvent& rhs)
 	{
-		if (lhs.eventCode_ != rhs.eventCode_ || lhs.symbolIndex_ != rhs.symbolIndex_
+		if (lhs.eventCode_ != rhs.eventCode_
+			|| lhs.symbolIndex_ != rhs.symbolIndex_
 			|| lhs.trackingNo_ != rhs.trackingNo_) return false;
-		return (lhs.timeHours_ == rhs.timeHours_ && lhs.timestamp_ == rhs.timestamp_);
+		return (lhs.timeHours_ == rhs.timeHours_
+				&& lhs.timestamp_ == rhs.timestamp_);
 	}
 	int marshal(void *bufP, int bLen) noexcept
 	{
@@ -142,7 +147,7 @@ public:
 			roundLotSize_(lotSize), turnoverMulti_(turnMu),
 			lowerLimit_(lowerL), upperLimit_(upperL)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 		memset(contract_, 0, sizeof(contract_));
 		auto ll = contr.size();
 		if (ll > sizeof(contract_)) ll = sizeof(contract_);
@@ -222,7 +227,7 @@ public:
 		pitchMessage(MSG_SYMBOL_TRADING_ACTION, symIndex, trkN, timeUs),
 		tradingState_(state), reason_(reas)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const symbolTradingAction &lhs, const symbolTradingAction& rhs)
 	{
@@ -273,12 +278,13 @@ public:
 		pitchMessage(MSG_ADD_ORDER, symIndex, trkN, timeUs),
 		buySell_(bs), orderRefNo_(ordRef), qty_(qty), price_(prc)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const addOrder &lhs, const addOrder& rhs)
 	{
 		if (lhs.buySell_ != rhs.buySell_ || lhs.symbolIndex_ != rhs.symbolIndex_
-			|| lhs.trackingNo_ != rhs.trackingNo_ || lhs.timestamp_ != rhs.timestamp_
+			|| lhs.trackingNo_ != rhs.trackingNo_
+			|| lhs.timestamp_ != rhs.timestamp_
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ ) return false;
 		return  lhs.qty_ == rhs.qty_ && lhs.price_ == rhs.price_;
 	}
@@ -328,12 +334,14 @@ public:
 		printable_(printA),  orderRefNo_(ordRef),
 		qty_(qty), matchNo_(matchNo)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const orderExecuted &lhs, const orderExecuted& rhs)
 	{
-		if (lhs.printable_ != rhs.printable_ || lhs.symbolIndex_ != rhs.symbolIndex_
-			|| lhs.trackingNo_ != rhs.trackingNo_ || lhs.timestamp_ != rhs.timestamp_
+		if (lhs.printable_ != rhs.printable_
+			|| lhs.symbolIndex_ != rhs.symbolIndex_
+			|| lhs.trackingNo_ != rhs.trackingNo_
+			|| lhs.timestamp_ != rhs.timestamp_
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ || lhs.qty_ != rhs.qty_)
 			return false;
 		return lhs.matchNo_ == rhs.matchNo_;
@@ -379,12 +387,14 @@ public:
 		printable_(printA), 
 		orderRefNo_(ordRef), qty_(qty), price_(prc), matchNo_(matchNo)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const orderEexecutedWithPrice &lhs, const orderEexecutedWithPrice& rhs)
 	{
-		if (lhs.printable_ != rhs.printable_ || lhs.symbolIndex_ != rhs.symbolIndex_
-			|| lhs.trackingNo_ != rhs.trackingNo_ || lhs.timestamp_ != rhs.timestamp_
+		if (lhs.printable_ != rhs.printable_
+			|| lhs.symbolIndex_ != rhs.symbolIndex_
+			|| lhs.trackingNo_ != rhs.trackingNo_
+			|| lhs.timestamp_ != rhs.timestamp_
 			|| lhs.orderRefNo_ != rhs.orderRefNo_ || lhs.qty_ != rhs.qty_)
 			return false;
 		return lhs.matchNo_ == rhs.matchNo_ && lhs.price_ == rhs.price_;
@@ -393,7 +403,8 @@ public:
 	{
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, printable_, symbolIndex_,
-			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_, price_))) return -1;
+			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_, price_)))
+			return -1;
 		return sr.Size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
@@ -424,6 +435,7 @@ protected:
 enum cancelCode : u8 {
 	PITCH_CANCEL_BYUSER =	'U',
 	PITCH_CANCEL_ARB	=	'A',
+	PITCH_CANCEL_MODIFY	=	'M',	// by modify order
 	PITCH_CANCEL_ODDLOT	=	'O',	// not normalization lots
 	PITCH_CANCEL_OOB	=	'B',	// out of price band
 	PITCH_CANCEL_BREAK	=	'S',	// broken session
@@ -440,7 +452,7 @@ public:
 		pitchMessage(MSG_ORDER_CANCEL, symIndex, trkN, timeUs),
 		cancelReason_(cCode), orderRefNo_(ordRef), qty_(qty)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const orderCancel &lhs, const orderCancel& rhs)
 	{
@@ -487,7 +499,7 @@ public:
 		pitchMessage(MSG_ORDER_DELETE, symIndex, trkN, timeUs),
 		cancelReason_(cCode), orderRefNo_(ordRef)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const orderDelete &lhs, const orderDelete& rhs)
 	{
@@ -532,7 +544,7 @@ public:
 		pitchMessage(MSG_ORDER_REPLACE, symIndex, trkN, timeUs),
 		orderRefNo_(ordRef), newOrderRefNo_(NewOrdRef), qty_(qty), price_(prc)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const orderReplace &lhs, const orderReplace& rhs)
 	{
@@ -585,7 +597,7 @@ public:
 		buySell_(bs), orderRefNo_(ordRef), qty_(qty), price_(prc),
 		matchNo_(mNo)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const msgTrade &lhs, const msgTrade& rhs)
 	{
@@ -600,7 +612,8 @@ public:
 	{
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, buySell_, symbolIndex_,
-			trackingNo_, timestamp_, orderRefNo_, qty_, price_, matchNo_))) return -1;
+			trackingNo_, timestamp_, orderRefNo_, qty_, price_, matchNo_)))
+			return -1;
 		return sr.Size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
@@ -644,7 +657,7 @@ public:
 		crossType_(ct), qty_(qty), price_(prc), pclose_(pclose),
 		openInterest_(op), matchNo_(mNo)
 	{
-		static_assert(sizeof(*this) <= 64, "sizeof must less than 64");
+		static_assert(sizeof(*this) <= pMsgSize, "sizeof must less than 64");
 	}
 	friend bool operator==(const crossTrade &lhs, const crossTrade& rhs)
 	{
@@ -661,8 +674,8 @@ public:
 	{
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, crossType_, symbolIndex_,
-		trackingNo_, timestamp_, qty_, price_, pclose_, openInterest_, matchNo_)))
-			return -1;
+			trackingNo_, timestamp_, qty_, price_, pclose_, openInterest_,
+			matchNo_))) return -1;
 		return sr.Size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
@@ -712,46 +725,80 @@ protected:
 	char	PriceVariationIndicator;
 };
 
-inline	std::shared_ptr<pitchMessage> unmarshal(const void *bufP, const int bLen) noexcept
+#ifdef	_NTEST
+inline	std::shared_ptr<pitchMessage>
+unmarshal(const void *bufP, const int bLen) noexcept
 {
 	Serialization	sr(bufP, bLen);
 	std::shared_ptr<pitchMessage>	ret;
 	u8		msgT;
 	if (ts3_unlikely(!sr.decode(msgT))) return ret;
-	std::shared_ptr<pitchMessage>	res;
 	switch((msgType)msgT) {
 	case MSG_SYSTEM_EVENT:
-		res = std::make_shared<pitchSystemEvent>();
+	{
+		auto res = std::make_shared<pitchSystemEvent>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_SYMBOL_DIRECTORY:
-		res = std::make_shared<pitchSymbolDirectory>();
+	{
+		auto res = std::make_shared<pitchSymbolDirectory>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_SYMBOL_TRADING_ACTION:
-		res = std::make_shared<symbolTradingAction>();
+	{
+		auto res = std::make_shared<symbolTradingAction>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ADD_ORDER:
-		res = std::make_shared<addOrder>();
+	{
+		auto res = std::make_shared<addOrder>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ORDER_EXECUTED:
-		res = std::make_shared<orderExecuted>();
+	{
+		auto res = std::make_shared<orderExecuted>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ORDER_EXECUTED_WITH_PRICE:
-		res = std::make_shared<orderEexecutedWithPrice>();
+	{
+		auto res = std::make_shared<orderEexecutedWithPrice>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ORDER_CANCEL:
-		res = std::make_shared<orderCancel>();
+	{
+		auto res = std::make_shared<orderCancel>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ORDER_DELETE:
-		res = std::make_shared<orderDelete>();
+	{
+		auto res = std::make_shared<orderDelete>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_ORDER_REPLACE:
-		res = std::make_shared<orderReplace>();
+	{
+		auto res = std::make_shared<orderReplace>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_TRADE:
-		res = std::make_shared<msgTrade>();
+	{
+		auto res = std::make_shared<msgTrade>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_CROSS_TRADE:
-		res = std::make_shared<crossTrade>();
+	{
+		auto res = std::make_shared<crossTrade>();
+		ret = static_pointer_cast<pitchMessage>(res);
+	}
 		break;
 	case MSG_NOII:
 	case MSG_BROKEN_TRADE:
@@ -760,11 +807,111 @@ inline	std::shared_ptr<pitchMessage> unmarshal(const void *bufP, const int bLen)
 		// NO WAY GO HERE
 		return ret;
 	}
-	if (ts3_unlikely(!res->unmarshal(sr))) {
+	if (ts3_unlikely(!ret->unmarshal(sr))) {
+		ret = std::shared_ptr<pitchMessage>();
+	}
+	return ret;
+}
+
+
+template<typename T>T
+unmarshal(const void *bufP, const int bLen, void *outBufP) noexcept
+{
+	Serialization	sr(bufP, bLen);
+	T	ret=nullptr;
+	u8		msgT;
+	if (ts3_unlikely(!sr.decode(msgT))) return ret;
+	switch((msgType)msgT) {
+	case MSG_SYSTEM_EVENT:
+	{
+		auto res = new (outBufP) pitchSystemEvent;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_SYMBOL_DIRECTORY:
+	{
+		auto res =  new(outBufP) pitchSymbolDirectory;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_SYMBOL_TRADING_ACTION:
+	{
+		auto res = new (outBufP) symbolTradingAction;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ADD_ORDER:
+	{
+		auto res = new (outBufP) addOrder;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ORDER_EXECUTED:
+	{
+		auto res = new (outBufP) orderExecuted;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ORDER_EXECUTED_WITH_PRICE:
+	{
+		auto res = new (outBufP) orderEexecutedWithPrice;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ORDER_CANCEL:
+	{
+		auto res = new (outBufP) orderCancel;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ORDER_DELETE:
+	{
+		auto res = new (outBufP) orderDelete;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_ORDER_REPLACE:
+	{
+		auto res = new (outBufP) orderReplace;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_TRADE:
+	{
+		auto res = new (outBufP) msgTrade;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_CROSS_TRADE:
+	{
+		auto res = new (outBufP) crossTrade;
+		//ret = reinterpret_cast<T>(res);
+		ret = res;
+	}
+		break;
+	case MSG_NOII:
+	case MSG_BROKEN_TRADE:
+		return ret;
+	default:
+		// NO WAY GO HERE
 		return ret;
 	}
-	return res;
+	if (ts3_unlikely(!ret->unmarshal(sr))) {
+		return nullptr;
+	}
+	return ret;
 }
+#endif
 
 } }
 #endif	// __TS3_PITCH_HPP__

@@ -15,6 +15,18 @@ public:
 		if (ts3_unlikely(length_ == 0)) return true;
 		return memcmp(dataPtr_, msg.dataPtr_, length_) == 0;
 	}
+#ifdef	ommit
+	message_t& operator=(const message_t &msg) noexcept {
+		if (this != &msg) {
+			bValid_ = msg.bValid_;
+			if ( ts3_unlikely(!bValid_) ) return *this;
+			length_ = msg.length_;
+			if (ts3_unlikely(length_ == 0)) return *this;
+			dataPtr_ = msg.dataPtr_;
+		}
+		return *this;
+	}
+#endif
 	// return true, if successfully marshal
 	bool marshal(u8 *buff, size_t& buflen) noexcept {
 		if ( ts3_unlikely(!bValid_) ) return false;
@@ -34,8 +46,8 @@ public:
 	bool isNil() const {
 		return !bValid_;
 	};
-	size_t size() const { return length_; }
-	char * data() const { return (char *)dataPtr_; }
+	const size_t size() const noexcept { return length_; }
+	char * data() const noexcept { return (char *)dataPtr_; }
 	message_t(const void *buff, size_t buflen) noexcept {
 		assert(buflen >= 0);
 		length_ = buflen;
@@ -58,14 +70,23 @@ public:
 		if (ts3_unlikely(length_ == 0)) return true;
 		return memcmp(buf_, msg.buf_, length_) == 0;
 	}
+#ifdef	ommit
+	CLmessage& operator=(const CLmessage &msg) noexcept {
+		if (this != &msg) {
+			length_ = msg.length_;
+			if ( ts3_likely(length_ > 0) ) memcpy(buf_, msg.buf_, length_);
+		}
+		return *this;
+	}
+#endif
 	explicit operator bool () {
 		return length_ != 0;
 	}
 	bool isNil() const {
 		return length_ == 0;
 	};
-	size_t size() const { return length_; }
-	char * data() const { return (char *)buf_; }
+	const size_t size() const noexcept { return length_; }
+	char * data() const noexcept { return (char *)buf_; }
 	void clear() noexcept { length_ = 0; }
 	void SetSize(int v) noexcept {
 		if (v > 0 && v <= (int)sizeof(buf_)) length_ = v;
@@ -76,7 +97,7 @@ public:
 	}
 	CLmessage(const CLmessage &msg) noexcept : length_(msg.length_) {
 		static_assert(sizeof(msg) == 64, "sizeof CLmessage MUST be 64");
-		//if (ts3_unlikely(length_ > sizeof(buf_))) length_ = sizeof(buf_);
+		if (ts3_unlikely(length_ > sizeof(buf_))) length_ = sizeof(buf_);
 		if (ts3_likely(length_ > 0)) memcpy(buf_, msg.buf_, length_);
 	}
 	CLmessage(const void *data, const size_t ll) noexcept : length_(ll) {
@@ -98,7 +119,10 @@ public:
 	}
 	bool unmarshal(void *buff, size_t buflen) noexcept {
 		length_ = buflen;
-		if ( ts3_unlikely(length_ >= sizeof(buf_)) ) return false;
+		if ( ts3_unlikely(length_ >= sizeof(buf_)) ) {
+			length_ = 0;
+			return false;
+		}
 		if ( ts3_likely(length_>0) ) memcpy(buf_, buff, length_);
 		return true;
 	}

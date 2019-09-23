@@ -61,7 +61,8 @@ klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 }
 
 forceinline time_t mkgmtime(const struct tm* stm) noexcept {
-	static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+	static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243,
+									273, 304, 334 };
 	long     year = 1900 + stm->tm_year + stm->tm_mon / 12;
 	time_t   result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
 	result += (year - 1968) / 4;
@@ -106,14 +107,14 @@ public:
 	timeval(int64_t tv): sec(tv>>32), nanosec(tv & 0x3ffffff) {}
 	timeval() = default;
 	timeval(const timeval &) = default;
-	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) {
-	}
+	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) { }
 	void Now() {
 		timespec	tp;
 		clock_gettime(TS3_SYSCLOCK, &tp);
 		sec = tp.tv_sec;
 		nanosec = tp.tv_nsec;
 	}
+#ifdef	ommit
 	timeval& operator=(const timeval &tv) noexcept {
 		if (ts3_likely(this != &tv)) {
 			sec = tv.sec;
@@ -121,6 +122,7 @@ public:
 		}
 		return *this;
 	}
+#endif
 	bool operator==(const timeval &tv) {
 		return sec == tv.sec && nanosec == tv.nanosec;
 	}

@@ -10,7 +10,8 @@ namespace ts3 {
 class Serialization {
 public:
 	Serialization() = default;
-	Serialization(const Serialization &) = default;
+	Serialization(const Serialization &sr) : bSize_(sr.bSize_),
+		off_(sr.off_), err_(sr.err_), bufp_(sr.bufp_) {}
 	Serialization(const void *bufP, int bSize): bSize_(bSize),
 		bufp_((u8 *)bufP) {}
 	int	Size() const { return off_; }
