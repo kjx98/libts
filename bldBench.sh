@@ -76,7 +76,7 @@
 		exit 1
 	fi
 
-	DEP_ARRAY=(g++ cmake make automake libssl-dev build-essential \
+	DEP_ARRAY=(g++ cmake make automake libssl-dev build-essential googletest \
     autoconf libtool doxygen libgoogle-perftools-dev libboost-dev)
 	COUNT=1
 	DISPLAY=""

@@ -1,4 +1,4 @@
-dist: xenial
+dist: bonic
 compiler: gcc
 sudo: required
 addons:
