@@ -97,13 +97,13 @@ enum duration_t : int64_t {
 constexpr double msDiv = 1.0/ms;
 constexpr double usDiv = 1.0/us;
 constexpr double nsDiv = 1.0/ns;
-}
+}	// end namespace duration
 
 constexpr uint32_t	HourUs=3600*(uint32_t)duration::us;
 
 class	timeval {
 public:
-	explicit timeval(const time_t *t): sec(*t) {}
+	explicit timeval(const time_t *t): sec(*t), nanosec(0) {}
 	timeval(int64_t tv): sec(tv>>32), nanosec(tv & 0x3ffffff) {}
 	timeval() = default;
 	timeval(const timeval &) = default;
@@ -114,15 +114,6 @@ public:
 		sec = tp.tv_sec;
 		nanosec = tp.tv_nsec;
 	}
-#ifdef	ommit
-	timeval& operator=(const timeval &tv) noexcept {
-		if (ts3_likely(this != &tv)) {
-			sec = tv.sec;
-			nanosec = tv.nanosec;
-		}
-		return *this;
-	}
-#endif
 	bool operator==(const timeval &tv) {
 		return sec == tv.sec && nanosec == tv.nanosec;
 	}
@@ -145,7 +136,9 @@ public:
 		return res;
 	}
 	//time_t	to_time_t() const { return sec; }
+#if	__cplusplus >= 201703L
 	time_t	unix() const { return sec; }
+#endif
 	time_t	seconds() const { return sec; }
 	uint32_t nanoSeconds() const { return nanosec; }
 private:
@@ -394,6 +387,29 @@ public:
 		if (bufp == nullptr) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
 	};
+	char *SString(char *bufp) noexcept {
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
+		auto tmp = tmPtr();
+		int	msec_ = time_ % dur;
+		// strftime without milliseconds
+		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
+		switch (dur) {
+		case duration::ms :
+		sprintf(bufp, "%02d:%02d:%02d.%03d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		case duration::us :
+		sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		case duration::ns :
+	    sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		}
+		return bufp;
+	}
 	char *String(char *bufp) noexcept {
 		if (ts3_unlikely(bufp == nullptr)) return nullptr;
 		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
@@ -403,12 +419,12 @@ public:
 		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
 		switch (dur) {
 		case duration::ms :
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
+		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
 			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
 			tmp->tm_sec, msec_);
 			break;
 		case duration::us :
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
+		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
 			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
 			tmp->tm_sec, msec_);
 			break;

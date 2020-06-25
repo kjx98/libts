@@ -50,10 +50,13 @@ public:
 		return queue_.pop(dat);
 	}
 	bool isEmpty() noexcept { return queue_.empty(); }
+#if	__GNUC__ > 6
+	size_t	write_available() const { return queue_.write_available(); }
+#endif
 	bool is_lockfree() noexcept { return queue_.is_lock_free(); }
 
-	size_t	waitCount() { return nWaits_; }
-	size_t	waitSlowCount() { return nSlowWaits_; }
+	size_t	waitCount() const { return nWaits_; }
+	size_t	waitSlowCount() const { return nSlowWaits_; }
 
 private:
 	boost::lockfree::spsc_queue<T, boost::lockfree::capacity<rgSize> > queue_;

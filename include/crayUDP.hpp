@@ -101,6 +101,22 @@ private:
 using crayUDP_request = crayUDP_header;
 
 template<typename MsgType> forceinline
+size_t marshal(u8 *buff, const size_t bufLen, MsgType& msg) noexcept 
+{
+	auto ret = 0;
+	auto mLen = msg.size();
+	if (ts3_unlikely(sizeof(u16)+mLen > bufLen)) return ret;
+	u16 mm = htole16(mLen);
+	memcpy(buff, &mm, sizeof(mm));
+	ret += sizeof(u16);
+	if (ts3_likely(mLen > 0)) {
+		memcpy(buff+ret, msg.data(), mLen);
+		ret += mLen;
+	}
+	return ret;
+}
+
+template<typename MsgType> forceinline
 int marshal(u8 *buff, size_t& bufLen, MsgType msgs[], int nMsgs) noexcept 
 {
 	auto n = bufLen;

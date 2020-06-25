@@ -7,8 +7,7 @@
 #include "ts3/timestamp.hpp"
 #include "ts3/serialization.hpp"
 
-namespace ts3 {
-namespace pitch {
+namespace ts3::pitch {
 
 using namespace std;
 constexpr int	pMsgSize=64;
@@ -913,5 +912,5 @@ unmarshal(const void *bufP, const int bLen, void *outBufP) noexcept
 }
 #endif
 
-} }
+}
 #endif	// __TS3_PITCH_HPP__

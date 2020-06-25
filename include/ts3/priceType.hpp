@@ -24,7 +24,7 @@ forceinline double digitDiv(int ndig) noexcept {
 	if (ts3_unlikely(ndig < digitMin || ndig > digitMax)) return 1.0;
 	return dDiv[ndig+2];
 }
-}
+}	// end namespace fixed
 
 template<typename T> forceinline double toDouble(const T v, const int ndig) {
 	return (double)v * fixed::digitDiv(ndig);
