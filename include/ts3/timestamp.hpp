@@ -24,6 +24,11 @@ bool forceinline	operator==(const timespec& left, const timespec& right) {
 	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
 }
 
+bool forceinline	operator<(const timespec& left, const timespec& right) {
+	return left.tv_sec < right.tv_sec || (left.tv_sec == right.tv_sec &&
+			left.tv_nsec < right.tv_nsec);
+}
+
 forceinline timespec& operator+=(timespec& tt, const timespec &tv) {
 	tt.tv_sec += tv.tv_sec;
 	tt.tv_nsec += tv.tv_nsec;
@@ -44,6 +49,20 @@ forceinline timespec& operator-=(timespec& tt, const timespec &tv) {
 	return tt;
 }
 
+forceinline timespec& operator+=(timespec& tt, const int64_t av) {
+	auto secV = av / TS3_TIME_NANOSECOND;
+	auto secM = av % TS3_TIME_NANOSECOND;
+	tt.tv_sec += secV;
+	tt.tv_nsec += secM;
+	if (tt.tv_nsec >= TS3_TIME_NANOSECOND) {
+		tt.tv_nsec -= TS3_TIME_NANOSECOND;
+		tt.tv_sec++;
+	} else if (tt.tv_nsec < 0) {
+		tt.tv_nsec += TS3_TIME_NANOSECOND;
+		tt.tv_sec--;
+	}
+	return tt;
+}
 
 namespace ts3 {
 
@@ -100,6 +119,7 @@ constexpr double nsDiv = 1.0/ns;
 }	// end namespace duration
 
 constexpr uint32_t	HourUs=3600*(uint32_t)duration::us;
+constexpr int64_t	SysJitt=100000;	// 100us
 
 class	timeval {
 public:
@@ -108,7 +128,7 @@ public:
 	timeval() = default;
 	timeval(const timeval &) = default;
 	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) { }
-	void Now() {
+	void now() {
 		timespec	tp;
 		clock_gettime(TS3_SYSCLOCK, &tp);
 		sec = tp.tv_sec;
@@ -128,7 +148,7 @@ public:
 		auto rem = lhs.nanosec - rhs.nanosec;
 		return res + rem * duration::nsDiv;
 	}
-	int64_t Sub(const timeval& rhs) noexcept
+	int64_t sub(const timeval& rhs) noexcept
 	{
 		int64_t	res = sec - rhs.sec;
 		res *= duration::ns;
@@ -141,6 +161,16 @@ public:
 #endif
 	time_t	seconds() const { return sec; }
 	uint32_t nanoSeconds() const { return nanosec; }
+	int	usleep(int64_t usec) noexcept {
+		struct	timespec tp;
+		if (usec > 999999) tp.tv_sec = usec / 1000000; else tp.tv_sec = 0;
+		if (tp.tv_sec > 60) {
+			//kt_warn(0, "usleep too long %d seconds", (int)tp.tv_sec);
+			tp.tv_sec = 60;
+		}
+		tp.tv_nsec = (usec % 1000000)*1000; // nano second
+		return nanosleep(&tp, nullptr);
+	}
 private:
 	int32_t		sec = 0;
 	int32_t		nanosec = 0;
@@ -229,6 +259,7 @@ inline int64_t timespec_deltaMs(const timespec &before, const timespec &after)
 // for a small amount of time
 void forceinline	usleep(int64_t us) noexcept
 {
+#ifdef	ommit
 	timespec	tSt, tp;
 	clock_gettime(TS3_SYSCLOCK, &tSt);
     auto intV = us *1000;
@@ -237,6 +268,36 @@ void forceinline	usleep(int64_t us) noexcept
         //sched_yield(); // same effect as prev line
 		clock_gettime(TS3_SYSCLOCK, &tp);
     } while (ts3_likely(tp - tSt < intV));
+#else
+	timespec	tpe, tp;
+	clock_gettime(TS3_SYSCLOCK, &tpe);
+    auto intV = us *1000;
+	tpe += intV;
+	if (intV > SysJitt) {
+		intV -= SysJitt;
+		tp.tv_sec = intV / TS3_TIME_NANOSECOND;
+		tp.tv_nsec = intV % TS3_TIME_NANOSECOND;
+		nanosleep(&tp, nullptr);
+	}
+    do {
+        std::this_thread::yield();
+        //sched_yield(); // same effect as prev line
+		clock_gettime(TS3_SYSCLOCK, &tp);
+    } while (ts3_likely(tp < tpe));
+#endif
+}
+
+// "busy sleep" while suggesting that other threads run
+// for a small amount of time
+void forceinline	usleep_to(time_t timeo) noexcept
+{
+	timespec	tpe, tp;
+	clock_gettime(TS3_SYSCLOCK, &tp);
+	if (tp.tv_sec >= timeo) return;
+	tpe.tv_sec = timeo;
+	tpe.tv_nsec = 0;
+	auto nsleepv = tpe - tp;
+	ts3::usleep(nsleepv / 1000);
 }
 
 class subHour {
