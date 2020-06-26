@@ -12,6 +12,7 @@ addons:
 branches:
   only:
   - master
+  - cpp17
 
 before_install:
   - sudo apt-get update -q

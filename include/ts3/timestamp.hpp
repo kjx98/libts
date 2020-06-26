@@ -257,39 +257,43 @@ inline int64_t timespec_deltaMs(const timespec &before, const timespec &after)
 
 // "busy sleep" while suggesting that other threads run
 // for a small amount of time
-void forceinline	usleep(int64_t us) noexcept
+void forceinline	nsleep(int64_t nsec) noexcept
 {
 #ifdef	ommit
 	timespec	tSt, tp;
 	clock_gettime(TS3_SYSCLOCK, &tSt);
-    auto intV = us *1000;
     do {
         std::this_thread::yield();
         //sched_yield(); // same effect as prev line
 		clock_gettime(TS3_SYSCLOCK, &tp);
-    } while (ts3_likely(tp - tSt < intV));
+    } while (ts3_likely(tp - tSt < nsec));
 #else
 	timespec	tpe, tp;
 	clock_gettime(TS3_SYSCLOCK, &tpe);
-    auto intV = us *1000;
-	tpe += intV;
-	if (intV > SysJitt) {
-		intV -= SysJitt;
-		tp.tv_sec = intV / TS3_TIME_NANOSECOND;
-		tp.tv_nsec = intV % TS3_TIME_NANOSECOND;
-		nanosleep(&tp, nullptr);
+	tp.tv_sec = tpe.tv_sec;
+	tp.tv_nsec = tpe.tv_nsec;
+	tpe += nsec;
+	if (nsec > SysJitt) {
+		nsec -= SysJitt;
+		tp += nsec;
+		while (clock_nanosleep(TS3_SYSCLOCK,TIMER_ABSTIME,&tp, nullptr));
 	}
-    do {
+    while (ts3_likely(tp < tpe)) {
         std::this_thread::yield();
         //sched_yield(); // same effect as prev line
 		clock_gettime(TS3_SYSCLOCK, &tp);
-    } while (ts3_likely(tp < tpe));
+    }
 #endif
+}
+
+void forceinline	usleep(int64_t us) noexcept
+{
+	nsleep(us * 1000);
 }
 
 // "busy sleep" while suggesting that other threads run
 // for a small amount of time
-void forceinline	usleep_to(time_t timeo) noexcept
+void forceinline	sleep_to(time_t timeo) noexcept
 {
 	timespec	tpe, tp;
 	clock_gettime(TS3_SYSCLOCK, &tp);
@@ -297,7 +301,7 @@ void forceinline	usleep_to(time_t timeo) noexcept
 	tpe.tv_sec = timeo;
 	tpe.tv_nsec = 0;
 	auto nsleepv = tpe - tp;
-	ts3::usleep(nsleepv / 1000);
+	nsleep(nsleepv);
 }
 
 class subHour {

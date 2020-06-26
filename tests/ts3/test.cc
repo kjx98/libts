@@ -61,10 +61,10 @@ TEST(testTS3, TestTimeval)
 	ASSERT_TRUE(nsec == 150 || nsec == 151);
 	std::cerr << "ts3::usleep(150) cost " << nsec << " useconds\n";
 	auto timeO = time(nullptr) + 3;
-	ts3::usleep_to(timeO);
+	ts3::sleep_to(timeO);
 	tvE.now();
 	ASSERT_EQ(timeO, tvE.seconds());
-	std::cerr << "ts3::usleep_to nsec " << tvE.nanoSeconds() << std::endl;
+	std::cerr << "ts3::sleep_to nsec " << tvE.nanoSeconds() << std::endl;
 }
 
 TEST(testTS3, TestDatetime)
