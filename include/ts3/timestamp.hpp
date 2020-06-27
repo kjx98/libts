@@ -66,6 +66,7 @@ forceinline timespec& operator+=(timespec& tt, const int64_t av) {
 
 namespace ts3 {
 
+// timezone must initialized by tzset() on Linux
 forceinline struct tm*
 klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 {
@@ -184,6 +185,45 @@ operator-(const timespec& left, const timespec& right) noexcept {
 	return res;
 }
 
+class LocalTime {
+public:
+	LocalTime(const time_t ts=0): sec_(ts),nsec_(0) {
+		if (sec_ == 0) {
+			struct timespec	sp_;
+			clock_gettime(TS3_SYSCLOCK, &sp_);
+			sec_ = sp_.tv_sec;
+			nsec_ = sp_.tv_nsec;
+		}
+		klocaltime(sec_, &tm_);
+	}
+	LocalTime(const LocalTime&) = default;
+	LocalTime(const timespec && tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
+		klocaltime(sec_, &tm_);
+	}
+	char *SString(char *bufp) noexcept {
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+		strftime(bufp, 20, "%y-%m-%d %H:%M:%S", &tm_);
+		return bufp;
+	}
+	time_t		time() noexcept { return sec_; }
+	const struct tm*	ltime() noexcept { return &tm_; }
+	void	next_hm(const int hour, const int min=0, const int sec=0) noexcept
+	{
+		int	nhr = hour - tm_.tm_hour;
+		if (nhr < 0) nhr += 24;
+		int nsec = (sec-tm_.tm_sec) + (min-tm_.tm_min)*60;
+		nsec += nhr*3600;
+		if (nsec != 0) {
+			nsec_ = 0;
+			sec_ += nsec;
+			klocaltime(sec_, &tm_);
+		}
+	}
+private:
+	time_t	sec_;
+	int32_t	nsec_;
+	struct tm	tm_;
+};
 
 enum sysclock_t {
 	realClock = 0,
@@ -276,7 +316,7 @@ void forceinline	nsleep(int64_t nsec) noexcept
 	if (nsec > SysJitt) {
 		nsec -= SysJitt;
 		tp += nsec;
-		while (clock_nanosleep(TS3_SYSCLOCK,TIMER_ABSTIME,&tp, nullptr));
+		while (clock_nanosleep(TS3_SYSCLOCK,TIMER_ABSTIME,&tp, nullptr) == EINTR);
 	}
     while (ts3_likely(tp < tpe)) {
         std::this_thread::yield();

@@ -60,6 +60,13 @@ TEST(testTS3, TestTimeval)
 	nsec = tvE.sub(tvS) / 10000000;
 	ASSERT_TRUE(nsec == 150 || nsec == 151);
 	std::cerr << "ts3::usleep(150) cost " << nsec << " useconds\n";
+	tvS.now();
+	for(int i=0;i<10000;++i)
+		std::this_thread::sleep_for(std::chrono::microseconds(100));
+	tvE.now();
+	nsec = tvE.sub(tvS) / 10000000;
+	std::cerr << "std::this_thread::sleep_for(100us) cost " << nsec
+			<< " useconds\n";
 	auto timeO = time(nullptr) + 3;
 	ts3::sleep_to(timeO);
 	tvE.now();
@@ -67,11 +74,45 @@ TEST(testTS3, TestTimeval)
 	std::cerr << "ts3::sleep_to nsec " << tvE.nanoSeconds() << std::endl;
 }
 
+TEST(testTS3, TestLocalTime)
+{
+	auto st = time(nullptr);
+	ts3::LocalTime	tt(st);
+	char	sbuf[32];
+	auto tmp = tt.ltime();
+	auto tmp1 = ts3::klocaltime(st, nullptr);
+	ASSERT_EQ(st, tt.time());
+	ASSERT_TRUE(tmp != nullptr);
+	ASSERT_TRUE(tmp1 != nullptr);
+	ASSERT_EQ(tmp->tm_hour, tmp1->tm_hour);
+	ASSERT_EQ(tmp->tm_min, tmp1->tm_min);
+	ASSERT_EQ(tmp->tm_sec, tmp1->tm_sec);
+	auto ss = tt.SString(sbuf);
+	std::cerr << "Current: " << ss << std::endl; 
+	int	nextHour = tmp->tm_hour + 1;
+	int	lastHour = tmp->tm_hour - 1;
+	if (nextHour > 23) nextHour = 0;
+	if (lastHour < 0) lastHour += 24;
+	tt.next_hm(nextHour);
+	tmp = tt.ltime();
+	ASSERT_EQ(tmp->tm_hour, nextHour);
+	ASSERT_EQ(tmp->tm_min, 0);
+	ASSERT_EQ(tmp->tm_sec, 0);
+	ss = tt.SString(sbuf);
+	std::cerr << "Next Hour Time: " << ss << std::endl; 
+	tt.next_hm(lastHour);
+	tmp = tt.ltime();
+	ASSERT_EQ(tmp->tm_hour, lastHour);
+	ASSERT_EQ(tmp->tm_min, 0);
+	ASSERT_EQ(tmp->tm_sec, 0);
+	ss = tt.SString(sbuf);
+	std::cerr << "Last Hour Time: " << ss << std::endl; 
+}
+
 TEST(testTS3, TestDatetime)
 {
 	struct tm	tmp;
 	time_t	tn=time(nullptr);
-	tzset();
 #ifdef	__linux__
 	cerr << "tz off: " << std::dec << timezone << std::endl;
 #endif
@@ -326,6 +367,7 @@ TEST(testTS3, TestMessage)
 
 int main(int argc,char *argv[])
 {
+	tzset();
     testing::InitGoogleTest(&argc, argv);//将命令行参数传递给gtest
     return RUN_ALL_TESTS();   //RUN_ALL_TESTS()运行所有测试案例
 }
