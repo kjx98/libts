@@ -75,7 +75,7 @@ BENCHMARK(test_bchronoMs);
 #ifdef	__x86_64__
 static void test_rdtscp(benchmark::State &state)
 {
-	uint64_t	v	[[gnu::unused]];
+	uint64_t	v	[[maybe_unused]];
 	for (auto _ : state) {
 		v = ts3::rdtscp();
 	}

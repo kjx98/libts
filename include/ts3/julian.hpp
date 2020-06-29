@@ -29,12 +29,7 @@ public:
 		jDN_ = newJDN(year, mon, mday);
 	}
 	uint32_t Uint32() noexcept {
-#if    __cplusplus >= 201703L
 		auto [y,m,d] = date(jDN_);
-#else
-		int     y,m,d;
-		std::tie(y,m,d) = date(jDN_);
-#endif
 		if (ts3_likely(y >= 0)) {
 			return y * 10000 + m*100 + d;
 		}
@@ -49,12 +44,7 @@ public:
 	std::string String8() noexcept { return std::to_string(jDN_); }
 	std::string String() noexcept {
 		char	buff[64];
-#if    __cplusplus >= 201703L
 		auto [y,m,d] = date(jDN_);
-#else
-		int     y,m,d;
-		std::tie(y,m,d) = date(jDN_);
-#endif
 		if (ts3_likely(y >= 0)) {
 			sprintf(buff, "%04d-%02d-%02d", y, m, d);
 		} else {

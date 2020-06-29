@@ -44,10 +44,7 @@ TEST(testTS3, TestTimeval)
 	ASSERT_EQ(tv.nanoSeconds(), (uint32_t)0);
 	tv = ts3::timeval(tt<<32 | 123);
 	EXPECT_EQ(tv.nanoSeconds(), (uint32_t)123);
-	EXPECT_EQ(tv.seconds(), tt);
-#if	__cplusplus >= 201703L
 	EXPECT_EQ(tv.unix(), tt);
-#endif
 	ts3::timeval	tvS, tvE;
 	tvS.now();
 	int	nIntrs=0;

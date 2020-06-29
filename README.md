@@ -6,10 +6,10 @@ https://travis-ci.org/kjx98/libts)
 
 ## 一、基本说明
 * libTS3 是 Jesse Kuang 独力开发的「C++ 跨平台交易基础设施」程序库
-* 使用 C++11 (C++17 in near future)
+* 使用 C++17 (C++11 compatible as possible)
 	* Windows: 
 	* Linux:
-		* GCC 7.2 or newer
+		* GCC 9.2 or newer
 		* cmake version 3.10 or newer
 * 跨平台Linux优先，但不支持老旧的OS
 * 仅考虑 64 位平台
@@ -30,9 +30,9 @@ https://travis-ci.org/kjx98/libts)
 
 ### 准备工作
 主要开发工具及版本
-* Linux: CentOS 7 w/ devtoolset-8 and epel, or fedora 30 w/ gcc9
+* Linux: CentOS 7 w/ devtoolset-9 and epel, or fedora 30 w/ gcc9
 	* cmake version 3.13
-	* gcc 8
+	* gcc 9
 	* build via cmake
 * Windows: VS 2017	**(TODO)**, currently using cmake
 	* mkdir tests/build
