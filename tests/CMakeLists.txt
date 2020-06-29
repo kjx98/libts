@@ -18,6 +18,7 @@ set(CMAKE_BUILD_TYPE "Release")
 #set(CMAKE_BUILD_TYPE "Debug")
 add_definitions( "-g -Wall -pthread" )
 
+project(tests)
 enable_testing()
 
 add_subdirectory( ts3 )

@@ -138,6 +138,7 @@ struct pitch_msg_order_executed_with_price {
 enum pitch_cancel_code {
 	PITCH_CANCEL_BYUSER =	'U',
 	PITCH_CANCEL_ARB	=	'A',
+	PITCH_CANCEL_MODIFY =   'M',    // by modify order
 	PITCH_CANCEL_ODDLOT	=	'O',	// not normalization lots
 	PITCH_CANCEL_OOB	=	'B',	// out of price band
 	PITCH_CANCEL_BREAK	=	'S',	// broken session

@@ -913,5 +913,6 @@ unmarshal(const void *bufP, const int bLen, void *outBufP) noexcept
 }
 #endif
 
-} }
+}
+}
 #endif	// __TS3_PITCH_HPP__

@@ -114,7 +114,6 @@ public:
 	struct hash
 	{
 		size_t operator()(pstring const &s) const noexcept {
-			//return std::hash<std::string>{}(s.String());
 			return ts3::__hash(s.data(), s.size());
 		}
 	};

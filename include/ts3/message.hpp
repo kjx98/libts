@@ -15,18 +15,6 @@ public:
 		if (ts3_unlikely(length_ == 0)) return true;
 		return memcmp(dataPtr_, msg.dataPtr_, length_) == 0;
 	}
-#ifdef	ommit
-	message_t& operator=(const message_t &msg) noexcept {
-		if (this != &msg) {
-			bValid_ = msg.bValid_;
-			if ( ts3_unlikely(!bValid_) ) return *this;
-			length_ = msg.length_;
-			if (ts3_unlikely(length_ == 0)) return *this;
-			dataPtr_ = msg.dataPtr_;
-		}
-		return *this;
-	}
-#endif
 	// return true, if successfully marshal
 	bool marshal(u8 *buff, size_t& buflen) noexcept {
 		if ( ts3_unlikely(!bValid_) ) return false;
@@ -70,15 +58,6 @@ public:
 		if (ts3_unlikely(length_ == 0)) return true;
 		return memcmp(buf_, msg.buf_, length_) == 0;
 	}
-#ifdef	ommit
-	CLmessage& operator=(const CLmessage &msg) noexcept {
-		if (this != &msg) {
-			length_ = msg.length_;
-			if ( ts3_likely(length_ > 0) ) memcpy(buf_, msg.buf_, length_);
-		}
-		return *this;
-	}
-#endif
 	explicit operator bool () {
 		return length_ != 0;
 	}
@@ -92,7 +71,7 @@ public:
 		if (v > 0 && v <= (int)sizeof(buf_)) length_ = v;
 	};
 	size_t cap() const { return sizeof(buf_); }
-	CLmessage() {
+	CLmessage() : length_(0) {
 		static_assert(sizeof(*this) == 64, "sizeof CLmessage MUST be 64");
 	}
 	CLmessage(const CLmessage &msg) noexcept : length_(msg.length_) {

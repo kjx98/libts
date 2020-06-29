@@ -17,17 +17,11 @@ constexpr int32_t	julian_Epoch = 2440588;
 
 class JulianDay {
 public:
-	bool operator==(const JulianDay &j) const {
-		return jDN_ == j.jDN_;
-	}
-	bool operator<(const JulianDay &j) const {
-		return jDN_ < j.jDN_;
-	}
+	bool operator==(const JulianDay &j) const { return jDN_ == j.jDN_; }
+	bool operator<(const JulianDay &j) const { return jDN_ < j.jDN_; }
 	JulianDay(const JulianDay &) = default;
 	JulianDay(const int v=0) : jDN_(v) {}
-	JulianDay(int y, int m, int d) {
-		jDN_ = newJDN(y, m, d);
-	}
+	JulianDay(int y, int m, int d) { jDN_ = newJDN(y, m, d); }
 	explicit JulianDay(const uint32_t days) {
 		int year = days / 10000;
 		int mon = (days % 10000) / 100;
@@ -35,10 +29,10 @@ public:
 		jDN_ = newJDN(year, mon, mday);
 	}
 	uint32_t Uint32() noexcept {
-#if	__cplusplus >= 201703L
+#if    __cplusplus >= 201703L
 		auto [y,m,d] = date(jDN_);
 #else
-		int	y,m,d;
+		int     y,m,d;
 		std::tie(y,m,d) = date(jDN_);
 #endif
 		if (ts3_likely(y >= 0)) {
@@ -52,15 +46,13 @@ public:
 		res *= 3600*24;
 		return res;
 	}
-	std::string String8() noexcept {
-		return std::to_string(jDN_);
-	}
+	std::string String8() noexcept { return std::to_string(jDN_); }
 	std::string String() noexcept {
 		char	buff[64];
-#if	__cplusplus >= 201703L
+#if    __cplusplus >= 201703L
 		auto [y,m,d] = date(jDN_);
 #else
-		int	y,m,d;
+		int     y,m,d;
 		std::tie(y,m,d) = date(jDN_);
 #endif
 		if (ts3_likely(y >= 0)) {

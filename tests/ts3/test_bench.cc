@@ -72,6 +72,17 @@ static void test_bchronoMs(benchmark::State &state)
 BENCHMARK(test_bchronoMs);
 #endif
 
+#ifdef	__x86_64__
+static void test_rdtscp(benchmark::State &state)
+{
+	uint64_t	v	[[gnu::unused]];
+	for (auto _ : state) {
+		v = ts3::rdtscp();
+	}
+}
+BENCHMARK(test_rdtscp);
+#endif
+
 static void test_memcpy(benchmark::State &state)
 {
 	for (auto _ : state) {

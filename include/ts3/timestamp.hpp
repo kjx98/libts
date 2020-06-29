@@ -24,7 +24,12 @@ bool forceinline	operator==(const timespec& left, const timespec& right) {
 	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
 }
 
-forceinline timespec& operator+=(timespec& tt, const timespec &tv) {
+bool forceinline	operator<(const timespec& left, const timespec& right) {
+	return left.tv_sec < right.tv_sec || (left.tv_sec == right.tv_sec &&
+			left.tv_nsec < right.tv_nsec);
+}
+
+forceinline timespec& operator+=(timespec& tt, const timespec& tv) {
 	tt.tv_sec += tv.tv_sec;
 	tt.tv_nsec += tv.tv_nsec;
 	if (tt.tv_nsec >= TS3_TIME_NANOSECOND) {
@@ -34,7 +39,7 @@ forceinline timespec& operator+=(timespec& tt, const timespec &tv) {
 	return tt;
 }
 
-forceinline timespec& operator-=(timespec& tt, const timespec &tv) {
+forceinline timespec& operator-=(timespec& tt, const timespec& tv) {
 	tt.tv_sec -= tv.tv_sec;
 	tt.tv_nsec -= tv.tv_nsec;
 	if (tt.tv_nsec < 0) {
@@ -44,9 +49,34 @@ forceinline timespec& operator-=(timespec& tt, const timespec &tv) {
 	return tt;
 }
 
+forceinline timespec& operator+=(timespec& tt, const int64_t av) {
+	auto secV = av / TS3_TIME_NANOSECOND;
+	auto secM = av % TS3_TIME_NANOSECOND;
+	tt.tv_sec += secV;
+	tt.tv_nsec += secM;
+	if (tt.tv_nsec >= TS3_TIME_NANOSECOND) {
+		tt.tv_nsec -= TS3_TIME_NANOSECOND;
+		tt.tv_sec++;
+	} else if (tt.tv_nsec < 0) {
+		tt.tv_nsec += TS3_TIME_NANOSECOND;
+		tt.tv_sec--;
+	}
+	return tt;
+}
 
 namespace ts3 {
 
+// get CPU tick count
+#ifdef	__x86_64__
+forceinline	uint64_t rdtscp() {
+	uint64_t lo, hi;
+	uint32_t aux;
+	asm volatile("rdtscp\n" : "=a"(lo), "=d"(hi), "=c"(aux) : :);
+	return (hi << 32) + lo;
+}
+#endif
+
+// timezone must initialized by tzset() on Linux
 forceinline struct tm*
 klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 {
@@ -97,32 +127,24 @@ enum duration_t : int64_t {
 constexpr double msDiv = 1.0/ms;
 constexpr double usDiv = 1.0/us;
 constexpr double nsDiv = 1.0/ns;
-}
+}	// end namespace duration
 
 constexpr uint32_t	HourUs=3600*(uint32_t)duration::us;
+constexpr int64_t	SysJitt=100000;	// 100us
 
 class	timeval {
 public:
-	explicit timeval(const time_t *t): sec(*t) {}
+	explicit timeval(const time_t *t): sec(*t), nanosec(0) {}
 	timeval(int64_t tv): sec(tv>>32), nanosec(tv & 0x3ffffff) {}
 	timeval() = default;
 	timeval(const timeval &) = default;
 	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) { }
-	void Now() {
+	void now() {
 		timespec	tp;
 		clock_gettime(TS3_SYSCLOCK, &tp);
 		sec = tp.tv_sec;
 		nanosec = tp.tv_nsec;
 	}
-#ifdef	ommit
-	timeval& operator=(const timeval &tv) noexcept {
-		if (ts3_likely(this != &tv)) {
-			sec = tv.sec;
-			nanosec = tv.nanosec;
-		}
-		return *this;
-	}
-#endif
 	bool operator==(const timeval &tv) {
 		return sec == tv.sec && nanosec == tv.nanosec;
 	}
@@ -137,7 +159,7 @@ public:
 		auto rem = lhs.nanosec - rhs.nanosec;
 		return res + rem * duration::nsDiv;
 	}
-	int64_t Sub(const timeval& rhs) noexcept
+	int64_t sub(const timeval& rhs) noexcept
 	{
 		int64_t	res = sec - rhs.sec;
 		res *= duration::ns;
@@ -145,9 +167,21 @@ public:
 		return res;
 	}
 	//time_t	to_time_t() const { return sec; }
+#if	__cplusplus >= 201703L
 	time_t	unix() const { return sec; }
+#endif
 	time_t	seconds() const { return sec; }
 	uint32_t nanoSeconds() const { return nanosec; }
+	int	usleep(int64_t usec) noexcept {
+		struct	timespec tp;
+		if (usec > 999999) tp.tv_sec = usec / 1000000; else tp.tv_sec = 0;
+		if (tp.tv_sec > 60) {
+			//kt_warn(0, "usleep too long %d seconds", (int)tp.tv_sec);
+			tp.tv_sec = 60;
+		}
+		tp.tv_nsec = (usec % 1000000)*1000; // nano second
+		return nanosleep(&tp, nullptr);
+	}
 private:
 	int32_t		sec = 0;
 	int32_t		nanosec = 0;
@@ -161,6 +195,49 @@ operator-(const timespec& left, const timespec& right) noexcept {
 	return res;
 }
 
+class LocalTime {
+public:
+	LocalTime(const time_t ts=0): sec_(ts),nsec_(0) {
+		if (sec_ == 0) {
+			struct timespec	sp_;
+			clock_gettime(TS3_SYSCLOCK, &sp_);
+			sec_ = sp_.tv_sec;
+			nsec_ = sp_.tv_nsec;
+		}
+		klocaltime(sec_, &tm_);
+	}
+	LocalTime(const LocalTime&) = default;
+	LocalTime(const timespec && tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
+		klocaltime(sec_, &tm_);
+	}
+	char *SString(char *bufp) noexcept {
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+		strftime(bufp, 20, "%y-%m-%d %H:%M:%S", &tm_);
+		return bufp;
+	}
+	time_t		time() noexcept { return sec_; }
+	const struct tm*	ltime() noexcept { return &tm_; }
+	std::tuple<int,int,int> ymd() noexcept {
+		return std::make_tuple(tm_.tm_year+1900,tm_.tm_mon+1,tm_.tm_mday);
+	}
+	int32_t nanoSeconds() noexcept { return nsec_; }
+	void	next_hm(const int hour, const int min=0, const int sec=0) noexcept
+	{
+		int	nhr = hour - tm_.tm_hour;
+		if (nhr < 0) nhr += 24;
+		int nsec = (sec-tm_.tm_sec) + (min-tm_.tm_min)*60;
+		nsec += nhr*3600;
+		if (nsec != 0) {
+			nsec_ = 0;
+			sec_ += nsec;
+			klocaltime(sec_, &tm_);
+		}
+	}
+private:
+	time_t	sec_;
+	int32_t	nsec_;
+	struct tm	tm_;
+};
 
 enum sysclock_t {
 	realClock = 0,
@@ -234,16 +311,51 @@ inline int64_t timespec_deltaMs(const timespec &before, const timespec &after)
 
 // "busy sleep" while suggesting that other threads run
 // for a small amount of time
-void forceinline	usleep(int64_t us) noexcept
+void forceinline	nsleep(int64_t nsec) noexcept
 {
+#ifdef	ommit
 	timespec	tSt, tp;
 	clock_gettime(TS3_SYSCLOCK, &tSt);
-    auto intV = us *1000;
     do {
         std::this_thread::yield();
         //sched_yield(); // same effect as prev line
 		clock_gettime(TS3_SYSCLOCK, &tp);
-    } while (ts3_likely(tp - tSt < intV));
+    } while (ts3_likely(tp - tSt < nsec));
+#else
+	timespec	tpe, tp;
+	clock_gettime(TS3_SYSCLOCK, &tpe);
+	tp.tv_sec = tpe.tv_sec;
+	tp.tv_nsec = tpe.tv_nsec;
+	tpe += nsec;
+	if (nsec > SysJitt) {
+		nsec -= SysJitt;
+		tp += nsec;
+		while (clock_nanosleep(TS3_SYSCLOCK,TIMER_ABSTIME,&tp, nullptr) == EINTR);
+	}
+    while (ts3_likely(tp < tpe)) {
+        std::this_thread::yield();
+        //sched_yield(); // same effect as prev line
+		clock_gettime(TS3_SYSCLOCK, &tp);
+    }
+#endif
+}
+
+void forceinline	usleep(int64_t us) noexcept
+{
+	nsleep(us * 1000);
+}
+
+// "busy sleep" while suggesting that other threads run
+// for a small amount of time
+void forceinline	sleep_to(time_t timeo) noexcept
+{
+	timespec	tpe, tp;
+	clock_gettime(TS3_SYSCLOCK, &tp);
+	if (tp.tv_sec >= timeo) return;
+	tpe.tv_sec = timeo;
+	tpe.tv_nsec = 0;
+	auto nsleepv = tpe - tp;
+	nsleep(nsleepv);
 }
 
 class subHour {
@@ -259,6 +371,7 @@ public:
 		uint32_t tt = (min*60 + sec) % 3600;
 		tv_ += tt * duration::us;
 	}
+	// return minutes/seconds/microseconds within hour
 	std::tuple<uint8_t,uint8_t,uint32_t> Time() noexcept {
 		uint8_t min,sec;
 		uint32_t res, ms;
@@ -394,6 +507,29 @@ public:
 		if (bufp == nullptr) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
 	};
+	char *SString(char *bufp) noexcept {
+		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
+		auto tmp = tmPtr();
+		int	msec_ = time_ % dur;
+		// strftime without milliseconds
+		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
+		switch (dur) {
+		case duration::ms :
+		sprintf(bufp, "%02d:%02d:%02d.%03d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		case duration::us :
+		sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		case duration::ns :
+	    sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+						tmp->tm_sec, msec_);
+			break;
+		}
+		return bufp;
+	}
 	char *String(char *bufp) noexcept {
 		if (ts3_unlikely(bufp == nullptr)) return nullptr;
 		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
@@ -403,12 +539,12 @@ public:
 		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
 		switch (dur) {
 		case duration::ms :
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
+		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
 			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
 			tmp->tm_sec, msec_);
 			break;
 		case duration::us :
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
+		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
 			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
 			tmp->tm_sec, msec_);
 			break;

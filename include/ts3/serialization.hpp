@@ -3,7 +3,7 @@
 #define	__TS3_SERIALIZATION_HPP__
 
 #include <type_traits>
-#include "ts3/types.h"
+#include "types.h"
 
 namespace ts3 {
 
