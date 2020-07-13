@@ -3,7 +3,7 @@
 ///
 /// libts 的一些基本设置.
 ///
-/// \author fonwinz@gmail.com
+/// \author jkuang@21cn.com
 
 /// \defgroup AlNum		字母数字
 /// \defgroup Thrs		Thread
@@ -32,22 +32,5 @@
 #define forceinline
 #endif
 #endif
-
-
-/// \ingroup ts3_MACRO
-#define ts3_NON_COPYABLE(className)        \
-	className(const className& r) = delete; \
-	className& operator=(const className& r) = delete;
-
-/// \ingroup ts3_MACRO
-#define ts3_NON_MOVEABLE(className)         \
-	className(const className&& r) = delete; \
-	className& operator=(const className&& r) = delete;
-
-/// \ingroup ts3_MACRO
-/// 使用巨集方式設定「禁止複製及move」.
-#define ts3_NON_COPY_NON_MOVE(className) \
-	ts3_NON_COPYABLE(className)           \
-	ts3_NON_MOVEABLE(className)
 
 #endif	// __TS3_CDEFS_H__

@@ -64,23 +64,44 @@ forceinline timespec& operator+=(timespec& tt, const int64_t av) {
 	return tt;
 }
 
+
 namespace ts3 {
 
 // get CPU tick count
 #ifdef	__x86_64__
 forceinline	uint64_t rdtscp() {
+#ifndef	ommit
 	uint64_t lo, hi;
 	uint32_t aux;
 	asm volatile("rdtscp\n" : "=a"(lo), "=d"(hi), "=c"(aux) : :);
 	return (hi << 32) + lo;
+#else
+	uint64_t tsc;
+	asm volatile("rdtscp; "		// serializing read of tsc
+				"shl $32,%%rdx; "  // shift higher 32 bits stored in rdx up
+				"or %%rdx,%%rax"   // and or onto rax
+				: "=a"(tsc)        // output to tsc variable
+				:
+				: "%rcx", "%rdx"); // rcx and rdx are clobbered
+	return tsc;
+#endif
 }
 #endif
 
 // timezone must initialized by tzset() on Linux
+#if	__cplusplus >= 201703L
+inline bool	__ts3_ts_inited = false;
+#endif
 forceinline struct tm*
 klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 {
 	static	tm	tms;
+#if	__cplusplus >= 201703L
+	if (!__ts3_ts_inited) {
+		tzset();
+		__ts3_ts_inited = true;
+	}
+#endif
 	if (stm == nullptr) stm = &tms;
 #ifdef	__linux__
 	time_t tt = tval - timezone;
@@ -114,8 +135,8 @@ forceinline time_t mkgmtime(const struct tm* stm) noexcept {
 }
 
 // CLOCK_MONOTONIC not compatible with chrono, even steady_clock
-//#define	TS3_SYSCLOCK	CLOCK_MONOTONIC
-#define	TS3_SYSCLOCK	CLOCK_REALTIME
+#define	TS3_STEADY_CLOCK	CLOCK_MONOTONIC
+#define	TS3_SYSCLOCK		CLOCK_REALTIME
 
 namespace duration {
 enum duration_t : int64_t {
@@ -131,6 +152,9 @@ constexpr double nsDiv = 1.0/ns;
 
 constexpr uint32_t	HourUs=3600*(uint32_t)duration::us;
 constexpr int64_t	SysJitt=100000;	// 100us
+using	sec_t = std::chrono::seconds;
+using	msec_t = std::chrono::milliseconds;
+using	usec_t = std::chrono::microseconds;
 
 class	timeval {
 public:
@@ -207,7 +231,10 @@ public:
 		klocaltime(sec_, &tm_);
 	}
 	LocalTime(const LocalTime&) = default;
-	LocalTime(const timespec && tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
+	LocalTime(const timespec & tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
+		klocaltime(sec_, &tm_);
+	}
+	LocalTime(timespec && tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
 		klocaltime(sec_, &tm_);
 	}
 	char *SString(char *bufp) noexcept {
@@ -216,20 +243,33 @@ public:
 		return bufp;
 	}
 	time_t		time() noexcept { return sec_; }
-	const struct tm*	ltime() noexcept { return &tm_; }
+	constexpr struct tm*	ltime() noexcept { return &tm_; }
 	std::tuple<int,int,int> ymd() noexcept {
 		return std::make_tuple(tm_.tm_year+1900,tm_.tm_mon+1,tm_.tm_mday);
 	}
 	int32_t nanoSeconds() noexcept { return nsec_; }
-	void	next_hm(const int hour, const int min=0, const int sec=0) noexcept
+	// assume sec == 0 mostly
+	int	time_next_hm(const int hour, const int min=0, const int sec=0) noexcept
 	{
-		int	nhr = hour - tm_.tm_hour;
-		if (nhr < 0) nhr += 24;
-		int nsec = (sec-tm_.tm_sec) + (min-tm_.tm_min)*60;
-		nsec += nhr*3600;
-		if (nsec != 0) {
+		int	minutes = (hour - tm_.tm_hour)*60 + (min-tm_.tm_min);
+		if (minutes <= 0) minutes += 24*60;
+		int ss = (sec-tm_.tm_sec) + minutes*60;
+		return ss;
+	}
+	// calculate microseconds next to hour/minute/second
+	int64_t us_next_hm(const int hour, const int min=0, const int sec=0)
+	{
+		int64_t		us = time_next_hm(hour, min, sec)*(int64_t)1000000;
+		us -= nsec_/1000;
+		return us;
+	}
+	void next_hm(const int hour, const int min=0, const int sec=0) noexcept
+	{
+		auto ss = time_next_hm(hour, min, sec);
+		// reset nsec_ while hms changed
+		if (ss != 0) {
 			nsec_ = 0;
-			sec_ += nsec;
+			sec_ += ss;
 			klocaltime(sec_, &tm_);
 		}
 	}
@@ -239,6 +279,75 @@ private:
 	struct tm	tm_;
 };
 
+#ifdef	__x86_64__
+class tsc_clock {
+public:
+	tsc_clock() : us_pertick_(1000.0), start_(0), overhead_(0), jitter_(0) {
+	}
+	//tsc_clock(const tsc_clock &) = default;
+	tsc_clock(const tsc_clock &) = delete;
+	tsc_clock(tsc_clock &&) = delete;
+	static tsc_clock&	Instance() noexcept {
+		static	tsc_clock	tsc_clock_;
+		if (tsc_clock_.start_ == 0) {
+			tsc_clock_.start_ = rdtscp();
+			tsc_clock_.calibration();
+		}
+		return tsc_clock_;
+	}
+	const double us_pertick() noexcept { return us_pertick_; }
+	const uint64_t overhead() noexcept { return overhead_; }
+	const int64_t jitter() noexcept {
+		if (jitter_ == 0) calibration_sleep();
+		return jitter_;
+	}
+#ifdef	ommit
+	double now() noexcept {
+		auto now_us = rdtscp();
+		return (now_us - start_ - overhead_) * us_pertick_;
+	}
+#endif
+	double elapse(const uint64_t startT, const uint64_t endT) noexcept {
+		if (endT <= startT + overhead_)
+			return (endT - startT) * us_pertick_;
+		return (endT - startT - overhead_) * us_pertick_;
+	}
+private:
+	void calibration() {
+		overhead_ = 1e9;
+		for (int i = 0; i<10; ++i) {
+			auto start = rdtscp();
+			auto stop = rdtscp();
+			auto diff = stop - start;
+			if (overhead_ > diff) overhead_ = diff;
+		}
+		{
+			timespec	tp1, tp2;
+			clock_gettime(TS3_STEADY_CLOCK, &tp1);
+			auto start = rdtscp();
+			std::this_thread::sleep_for(sec_t(1));
+			auto stop = rdtscp();
+			clock_gettime(TS3_STEADY_CLOCK, &tp2);
+			int64_t time_span = tp2 - tp1;
+			us_pertick_ = time_span / ((stop - start - overhead_) * 1000.0);
+		}
+	}
+	void calibration_sleep() {
+		timespec	tp1, tp2;
+		clock_gettime(TS3_STEADY_CLOCK, &tp1);
+		for(int i=0;i<10000;++i)
+			std::this_thread::sleep_for(std::chrono::microseconds(100));
+		clock_gettime(TS3_STEADY_CLOCK, &tp2);
+		jitter_ = (tp2 - tp1) / 10000000;
+		jitter_ -= 100;
+	}
+	double		us_pertick_;
+	uint64_t	start_;
+	uint64_t	overhead_;
+	int64_t		jitter_;
+};
+#endif
+
 enum sysclock_t {
 	realClock = 0,
 	simClock,
@@ -247,19 +356,23 @@ enum sysclock_t {
 
 class sysclock {
 public:
-	sysclock(sysclock_t clockTyp=realClock): clockType_(clockTyp) {
+	sysclock(sysclock_t clockTyp=realClock): clockType_(clockTyp),
+		clockid_(TS3_SYSCLOCK)
+	{
 		if (clockType_ == simClock)  {
 			timeAdj_ = std::make_shared<timespec>();
 			timeAdj_->tv_sec = 0;
 			timeAdj_->tv_nsec = 0;
+			clockid_ = TS3_STEADY_CLOCK;
 		}
 	}
 	sysclock(const sysclock& sc): clockType_(sc.clockType_),
-	   	timeAdj_(sc.timeAdj_)	{}
+		clockid_(sc.clockid_),
+		timeAdj_(sc.timeAdj_)	{}
 	void setTime(const time_t tt) noexcept {
 		if (ts3_unlikely(clockType_ != simClock)) return; //	error
 		struct timespec	sp_;
-		clock_gettime(TS3_SYSCLOCK, &sp_);
+		clock_gettime(clockid_, &sp_);
 		timeAdj_->tv_sec = tt;
 		timeAdj_->tv_nsec = 0;
 		*timeAdj_ -= sp_;
@@ -267,13 +380,13 @@ public:
 	void setTime(const class timeval& tv) noexcept {
 		if (ts3_unlikely(clockType_ != simClock)) return; //	error
 		struct timespec	sp_;
-		clock_gettime(TS3_SYSCLOCK, &sp_);
+		clock_gettime(clockid_, &sp_);
 		timeAdj_->tv_sec = tv.seconds();
 		timeAdj_->tv_nsec = tv.nanoSeconds();
 		*timeAdj_ -= sp_;
 	}
 	void now(timespec &sp) noexcept {
-		clock_gettime(TS3_SYSCLOCK, &sp);
+		clock_gettime(clockid_, &sp);
 		if (clockType_ == realClock) return;
 		sp += *timeAdj_;
 	}
@@ -289,6 +402,7 @@ public:
 	}
 private:
 	sysclock_t	clockType_;
+	clockid_t	clockid_;
 	std::shared_ptr<timespec>	timeAdj_;
 };
 

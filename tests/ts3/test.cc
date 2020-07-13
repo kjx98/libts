@@ -78,11 +78,13 @@ TEST(testTS3, TestTimeval)
 TEST(testTS3, TestLocalTime)
 {
 	auto st = time(nullptr);
+	EXPECT_FALSE(ts3::__ts3_ts_inited);
 	ts3::LocalTime	tt(st);
 	char	sbuf[32];
 	auto tmp = tt.ltime();
 	auto tmp1 = ts3::klocaltime(st, nullptr);
 	ASSERT_EQ(st, tt.time());
+	EXPECT_TRUE(ts3::__ts3_ts_inited);
 	ASSERT_TRUE(tmp != nullptr);
 	ASSERT_TRUE(tmp1 != nullptr);
 	ASSERT_EQ(tmp->tm_hour, tmp1->tm_hour);
@@ -113,6 +115,28 @@ TEST(testTS3, TestLocalTime)
 	ss = tt.SString(sbuf);
 	std::cerr << "Last Hour Time: " << ss << std::endl; 
 }
+
+#ifdef	__x86_64__
+TEST(testTS3, TestTscClock)
+{
+	auto st = time(nullptr);
+	auto sTick = ts3::rdtscp();
+	auto usp = ts3::tsc_clock::Instance().us_pertick();
+	auto eTick = ts3::rdtscp();
+	auto et = time(nullptr);
+	EXPECT_TRUE( et >= st+1 );
+	ts3::tsc_clock&	tscc(ts3::tsc_clock::Instance());
+	auto jitter = tscc.jitter();
+	std::cerr << "Overhead: " << tscc.overhead() << " us_pertick: "
+			<< usp << " ticks_per_us: " << 1 / usp
+			<< " jitter: " << jitter << std::endl;
+	auto el = tscc.elapse(sTick, eTick);
+	EXPECT_TRUE(el >= 1.0e6);
+	EXPECT_TRUE(el < 1.001e6);
+	std::cerr << "tsc_clock init cost " << tscc.elapse(sTick, eTick)
+			<< "us\n";
+}
+#endif
 
 TEST(testTS3, TestDatetime)
 {
@@ -372,7 +396,7 @@ TEST(testTS3, TestMessage)
 
 int main(int argc,char *argv[])
 {
-	tzset();
+	//tzset();
     testing::InitGoogleTest(&argc, argv);//将命令行参数传递给gtest
     return RUN_ALL_TESTS();   //RUN_ALL_TESTS()运行所有测试案例
 }
