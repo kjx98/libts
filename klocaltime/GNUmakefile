@@ -1,5 +1,5 @@
 #
-#	Makefile for RuYi Technical Analysis
+#	Makefile for Technical Analysis
 #
 # switches:
 #	define the ones you want in the CFLAGS definition...
