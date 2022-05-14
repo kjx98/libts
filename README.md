@@ -41,7 +41,7 @@ https://travis-ci.org/kjx98/libts)
 * 开启 compiler 全部的警告信息：警告信息的重要性，相信不用再提醒了。
 	* 警告信息 -- 零容忍。
 * UnitTest tools
-    * gtest-devel, google-benchmark-devel
+    * gtest-devel, google-benchmark-devel, fmt-devel
 
 ## 二、STL 库
   julian 儒略日， message 消息包抽象，serialization 实现POD简单类型的序列化与反序列化，timestamp 低延迟微秒/纳秒级计时与时间戳，priceType针对价格及金额的定点与浮点double的互换
