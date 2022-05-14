@@ -26,12 +26,8 @@
 #include <condition_variable>
 #include <map>
 #include <functional>
-#if	__has_include("spdlog/fmt/fmt.h")
-#include "spdlog/fmt/fmt.h"
-#else
 // <format.h> for C++20
 #include <fmt/format.h>
-#endif
 #include "ts3/timestamp.hpp"
 
 

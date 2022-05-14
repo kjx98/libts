@@ -3,11 +3,18 @@
 #define	__TS3_TIMESTAMP_HPP__
 
 #include <time.h>
+#if	!defined(__LP64__) && defined(__linux__)
+#include <time64.h>
+#endif
 #include <chrono>
 #include <thread>
 #include <memory>
 #include <tuple>
+#include <string>
 #include "types.h"
+#ifdef	__x86_64__
+#include "x86cpu.h"
+#endif
 
 #define	TS3_TIME_MILLISECOND	1000
 #define	TS3_TIME_MICROSECOND	1000000
@@ -67,17 +74,28 @@ forceinline timespec& operator+=(timespec& tt, const int64_t av) {
 
 namespace ts3 {
 
+#if	!defined(__LP64__) && defined(__linux__)
+using	utime_t = time64_t;
+#else
+using	utime_t = time_t;
+#endif
+
 // get CPU tick count
 #ifdef	__x86_64__
 forceinline	uint64_t rdtscp() {
-#ifndef	ommit
+#ifndef	NO_RDTSCP
+#ifdef	__clang__
 	uint64_t lo, hi;
 	uint32_t aux;
 	asm volatile("rdtscp\n" : "=a"(lo), "=d"(hi), "=c"(aux) : :);
 	return (hi << 32) + lo;
 #else
+	unsigned int aux;
+	return __rdtscp(&aux);
+#endif
+#else	// NO_RDTSCP
 	uint64_t tsc;
-	asm volatile("rdtscp; "		// serializing read of tsc
+	asm volatile("mfence;rdtsc;"		// serializing read of tsc
 				"shl $32,%%rdx; "  // shift higher 32 bits stored in rdx up
 				"or %%rdx,%%rax"   // and or onto rax
 				: "=a"(tsc)        // output to tsc variable
@@ -86,14 +104,14 @@ forceinline	uint64_t rdtscp() {
 	return tsc;
 #endif
 }
-#endif
+#endif	// __x86_64__
 
 // timezone must initialized by tzset() on Linux
 #if	__cplusplus >= 201703L
 inline bool	__ts3_ts_inited = false;
 #endif
 forceinline struct tm*
-klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
+klocaltime(const utime_t tval, struct tm *stm=nullptr) noexcept
 {
 	static	tm	tms;
 #if	__cplusplus >= 201703L
@@ -104,18 +122,22 @@ klocaltime(const time_t tval, struct tm *stm=nullptr) noexcept
 #endif
 	if (stm == nullptr) stm = &tms;
 #ifdef	__linux__
-	time_t tt = tval - timezone;
+	utime_t tt = tval - timezone;
 #else
-	time_t tt = tval;
+	utime_t tt = tval;
 #endif
+#if	!defined(__LP64__) && defined(__linux__)
+	return gmtime64_r(&tt, stm);
+#else
 	return gmtime_r(&tt, stm);
+#endif
 }
 
-forceinline time_t mkgmtime(const struct tm* stm) noexcept {
+forceinline utime_t mkgmtime(const struct tm* stm) noexcept {
 	static const int cumdays[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243,
 									273, 304, 334 };
-	long     year = 1900 + stm->tm_year + stm->tm_mon / 12;
-	time_t   result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
+	long	year = 1900 + stm->tm_year + stm->tm_mon / 12;
+	utime_t	result = (year - 1970) * 365 + cumdays[stm->tm_mon % 12];
 	result += (year - 1968) / 4;
 	result -= (year - 1900) / 100;
 	result += (year - 1600) / 400;
@@ -156,46 +178,47 @@ using	sec_t = std::chrono::seconds;
 using	msec_t = std::chrono::milliseconds;
 using	usec_t = std::chrono::microseconds;
 
-class	timeval {
+class	TimeVal {
 public:
-	explicit timeval(const time_t *t): sec(*t), nanosec(0) {}
-	timeval(int64_t tv): sec(tv>>32), nanosec(tv & 0x3ffffff) {}
-	timeval() = default;
-	timeval(const timeval &) = default;
-	timeval(const timespec &tp) : sec(tp.tv_sec), nanosec(tp.tv_nsec) { }
+	explicit TimeVal(const utime_t *t): _sec(*t), _nanosec(0) {}
+	TimeVal(const int64_t tv): _sec(tv>>32), _nanosec(tv & 0x3ffffff) {}
+	TimeVal(const int sec, const int nsec): _sec(sec), _nanosec(nsec) {}
+	TimeVal() = default;
+	TimeVal(const TimeVal &) = default;
+	TimeVal(const timespec &tp) : _sec(tp.tv_sec), _nanosec(tp.tv_nsec) { }
 	void now() {
 		timespec	tp;
 		clock_gettime(TS3_SYSCLOCK, &tp);
-		sec = tp.tv_sec;
-		nanosec = tp.tv_nsec;
+		_sec = tp.tv_sec;
+		_nanosec = tp.tv_nsec;
 	}
-	bool operator==(const timeval &tv) {
-		return sec == tv.sec && nanosec == tv.nanosec;
+	bool operator==(const TimeVal &tv) {
+		return _sec == tv._sec && _nanosec == tv._nanosec;
 	}
-	bool operator<(const timeval &tv) {
-		return ts3_unlikely(sec == tv.sec)? (nanosec < tv.nanosec)
-					: (sec < tv.sec);
+	bool operator<(const TimeVal &tv) {
+		return ts3_unlikely(_sec == tv._sec)? (_nanosec < tv._nanosec)
+					: (_sec < tv._sec);
 	}
 	// return diff in seconds
-	friend double operator-(const timeval& lhs, const timeval& rhs) noexcept
+	friend double operator-(const TimeVal& lhs, const TimeVal& rhs) noexcept
 	{
-		auto res = lhs.sec - rhs.sec;
-		auto rem = lhs.nanosec - rhs.nanosec;
+		auto res = lhs._sec - rhs._sec;
+		auto rem = lhs._nanosec - rhs._nanosec;
 		return res + rem * duration::nsDiv;
 	}
-	int64_t sub(const timeval& rhs) noexcept
+	int64_t sub(const TimeVal& rhs) noexcept
 	{
-		int64_t	res = sec - rhs.sec;
+		int64_t	res = _sec - rhs._sec;
 		res *= duration::ns;
-		res += nanosec - rhs.nanosec;
+		res += _nanosec - rhs._nanosec;
 		return res;
 	}
-	//time_t	to_time_t() const { return sec; }
 #if	__cplusplus >= 201703L
-	time_t	unix() const { return sec; }
+	utime_t	unix() const { return _sec; }
 #endif
-	time_t	seconds() const { return sec; }
-	uint32_t nanoSeconds() const { return nanosec; }
+	utime_t	seconds() const { return _sec; }
+	uint32_t nanoSeconds() const { return _nanosec; }
+#ifdef	_NTEST
 	int	usleep(int64_t usec) noexcept {
 		struct	timespec tp;
 		if (usec > 999999) tp.tv_sec = usec / 1000000; else tp.tv_sec = 0;
@@ -206,9 +229,10 @@ public:
 		tp.tv_nsec = (usec % 1000000)*1000; // nano second
 		return nanosleep(&tp, nullptr);
 	}
+#endif
 private:
-	int32_t		sec = 0;
-	int32_t		nanosec = 0;
+	uint32_t	_sec = 0;
+	int32_t		_nanosec = 0;
 };
 
 
@@ -221,7 +245,7 @@ operator-(const timespec& left, const timespec& right) noexcept {
 
 class LocalTime {
 public:
-	LocalTime(const time_t ts=0): sec_(ts),nsec_(0) {
+	LocalTime(const utime_t ts=0): sec_(ts),nsec_(0) {
 		if (sec_ == 0) {
 			struct timespec	sp_;
 			clock_gettime(TS3_SYSCLOCK, &sp_);
@@ -237,12 +261,12 @@ public:
 	LocalTime(timespec && tp): sec_(tp.tv_sec), nsec_(tp.tv_nsec) {
 		klocaltime(sec_, &tm_);
 	}
-	char *SString(char *bufp) noexcept {
-		if (ts3_unlikely(bufp == nullptr)) return nullptr;
-		strftime(bufp, 20, "%y-%m-%d %H:%M:%S", &tm_);
-		return bufp;
+	std::string SString() noexcept {
+		char	buff[32];
+		strftime(buff, 24, "%y-%m-%d %H:%M:%S", &tm_);
+		return std::string(buff, strlen(buff));
 	}
-	time_t		time() noexcept { return sec_; }
+	utime_t		time() noexcept { return sec_; }
 	constexpr struct tm*	ltime() noexcept { return &tm_; }
 	std::tuple<int,int,int> ymd() noexcept {
 		return std::make_tuple(tm_.tm_year+1900,tm_.tm_mon+1,tm_.tm_mday);
@@ -274,7 +298,7 @@ public:
 		}
 	}
 private:
-	time_t	sec_;
+	utime_t	sec_;
 	int32_t	nsec_;
 	struct tm	tm_;
 };
@@ -282,13 +306,16 @@ private:
 #ifdef	__x86_64__
 class tsc_clock {
 public:
-	tsc_clock() : us_pertick_(1000.0), start_(0), overhead_(0), jitter_(0) {
-	}
 	//tsc_clock(const tsc_clock &) = default;
-	tsc_clock(const tsc_clock &) = delete;
-	tsc_clock(tsc_clock &&) = delete;
+	TS3_DISABLE_COPY_MOVE(tsc_clock)
 	static tsc_clock&	Instance() noexcept {
 		static	tsc_clock	tsc_clock_;
+#ifndef	NO_RDTSCP
+		if (!check_rdtscp()) {
+			perror("No RDTSCP support");
+			abort();	// no RDTSCP
+		}
+#endif
 		if (tsc_clock_.start_ == 0) {
 			tsc_clock_.start_ = rdtscp();
 			tsc_clock_.calibration();
@@ -301,18 +328,14 @@ public:
 		if (jitter_ == 0) calibration_sleep();
 		return jitter_;
 	}
-#ifdef	ommit
-	double now() noexcept {
-		auto now_us = rdtscp();
-		return (now_us - start_ - overhead_) * us_pertick_;
-	}
-#endif
 	double elapse(const uint64_t startT, const uint64_t endT) noexcept {
 		if (endT <= startT + overhead_)
 			return (endT - startT) * us_pertick_;
 		return (endT - startT - overhead_) * us_pertick_;
 	}
 private:
+	tsc_clock() : us_pertick_(1000.0), start_(0), overhead_(0), jitter_(0) {
+	}
 	void calibration() {
 		overhead_ = 1e9;
 		for (int i = 0; i<10; ++i) {
@@ -369,33 +392,37 @@ public:
 	sysclock(const sysclock& sc): clockType_(sc.clockType_),
 		clockid_(sc.clockid_),
 		timeAdj_(sc.timeAdj_)	{}
-	void setTime(const time_t tt) noexcept {
+	void setTime(const utime_t tt) noexcept {
 		if (ts3_unlikely(clockType_ != simClock)) return; //	error
-		struct timespec	sp_;
+		struct timespec	sp_, spA;
 		clock_gettime(clockid_, &sp_);
-		timeAdj_->tv_sec = tt;
-		timeAdj_->tv_nsec = 0;
-		*timeAdj_ -= sp_;
+		spA.tv_sec = tt;
+		spA.tv_nsec = 0;
+		spA -= sp_;
+		// no rollback time
+		if (*timeAdj_ < spA) *timeAdj_ = spA;
 	}
-	void setTime(const class timeval& tv) noexcept {
+	void setTime(const TimeVal& tv) noexcept {
 		if (ts3_unlikely(clockType_ != simClock)) return; //	error
-		struct timespec	sp_;
+		struct timespec	sp_, spA;
 		clock_gettime(clockid_, &sp_);
-		timeAdj_->tv_sec = tv.seconds();
-		timeAdj_->tv_nsec = tv.nanoSeconds();
-		*timeAdj_ -= sp_;
+		spA.tv_sec = tv.seconds();
+		spA.tv_nsec = tv.nanoSeconds();
+		spA -= sp_;
+		// no rollback time
+		if (*timeAdj_ < spA) *timeAdj_ = spA;
 	}
 	void now(timespec &sp) noexcept {
 		clock_gettime(clockid_, &sp);
 		if (clockType_ == realClock) return;
 		sp += *timeAdj_;
 	}
-	void now(class timeval& tv) noexcept {
+	void now(TimeVal& tv) noexcept {
 		timespec	sp;
 		now(sp);
-		tv = timeval(sp);
+		tv = TimeVal(sp);
 	}
-	time_t time() noexcept {
+	utime_t time() noexcept {
 		timespec	sp;
 		now(sp);
 		return sp.tv_sec;
@@ -461,7 +488,7 @@ void forceinline	usleep(int64_t us) noexcept
 
 // "busy sleep" while suggesting that other threads run
 // for a small amount of time
-void forceinline	sleep_to(time_t timeo) noexcept
+void forceinline	sleep_to(utime_t timeo) noexcept
 {
 	timespec	tpe, tp;
 	clock_gettime(TS3_SYSCLOCK, &tp);
@@ -508,7 +535,7 @@ public:
 		_res = tp.tv_nsec;
 		sysClock_.now(tp);
 		_baseTime =tp.tv_sec; }
-	timestamp(time_t baseT) noexcept : _baseTime(baseT), tz_("GMT") {
+	timestamp(utime_t baseT) noexcept : _baseTime(baseT), tz_("GMT") {
 		struct timespec tp;
 		clock_getres(TS3_SYSCLOCK, &tp);
 		_res = tp.tv_nsec;
@@ -521,7 +548,12 @@ public:
 		_res = tp.tv_nsec;
 		sysClock_.now(tp);
 		struct	tm *tmp;
+#if	!defined(__LP64__) && defined(__linux__)
+		utime_t		tv_sec_ = tp.tv_sec;
+		if (isGMT) tmp=gmtime64(&tv_sec_); else tmp = localtime64(&tv_sec_);
+#else
 		if (isGMT) tmp=gmtime(&tp.tv_sec); else tmp = localtime(&tp.tv_sec);
+#endif
 		time_t	offt=tmp->tm_hour*3600 + tmp->tm_min*60+ tmp->tm_sec;
 		_baseTime = tp.tv_sec - offt;
 	}
@@ -559,11 +591,11 @@ public:
 		return res;
 	};
 	int32_t	resolution() { return _res; }
-	time_t	baseTime() { return _baseTime; }
-	time_t	to_time(int64_t nsVal) {
+	utime_t	baseTime() { return _baseTime; }
+	utime_t	to_time(int64_t nsVal) {
 		return _baseTime + (nsVal/duration::ns);
 	}
-	time_t	to_timeMs(int64_t msVal) {
+	utime_t	to_timeMs(int64_t msVal) {
 		return _baseTime + (msVal/duration::ms);
 	}
 #ifdef	USE_TIME_POINT
@@ -577,7 +609,7 @@ public:
 	}
 #endif
 private:
-	time_t	_baseTime;
+	utime_t	_baseTime;
 	int32_t	_res;
 	const char *tz_;
 	class sysclock sysClock_;
@@ -594,11 +626,11 @@ public:
 		time_ = tp.tv_sec * dur;
 		time_ += tp.tv_nsec / dur_div;
 	}
-	explicit DateTime(const timeval &tv) {
+	explicit DateTime(const TimeVal &tv) {
 		time_ = tv.seconds() * dur;
 		time_ += tv.nanoSeconds() / dur_div;
 	}
-	explicit DateTime(time_t baseTime, int64_t off) {
+	explicit DateTime(utime_t baseTime, int64_t off) {
 		time_ = baseTime * dur;
 		time_ += off;
 	}
@@ -612,63 +644,75 @@ public:
 		return dt.time_ == 0;
 	}
 	int64_t count() { return time_; }
-	time_t	to_time_t() { return time_/dur; }
+	utime_t	to_time_t() { return time_/dur; }
 	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
-		time_t	sec_ = time_/dur;
+		utime_t	sec_ = time_/dur;
 #ifdef	__linux__
 		sec_ -= timezone;
 #endif
+#if	!defined(__LP64__) && defined(__linux__)
+		if (bufp == nullptr) return gmtime64(&sec_);
+		return gmtime64_r(&sec_, bufp);
+#else
 		if (bufp == nullptr) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
+#endif
 	};
-	char *SString(char *bufp) noexcept {
-		if (ts3_unlikely(bufp == nullptr)) return nullptr;
-		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
+	// return short format timestamp
+	std::string SString() noexcept {
+		if (ts3_unlikely(time_ == 0)) { std::string(""); }
+		char	buff[32];
 		auto tmp = tmPtr();
 		int	msec_ = time_ % dur;
 		// strftime without milliseconds
 		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
 		switch (dur) {
 		case duration::ms :
-		sprintf(bufp, "%02d:%02d:%02d.%03d", tmp->tm_hour, tmp->tm_min,
+		snprintf(buff, 20, "%02d:%02d:%02d.%03d", tmp->tm_hour, tmp->tm_min,
 						tmp->tm_sec, msec_);
 			break;
 		case duration::us :
-		sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+		snprintf(buff, 20, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
 						tmp->tm_sec, msec_);
 			break;
 		case duration::ns :
-	    sprintf(bufp, "%02d:%02d:%02d.%06d", tmp->tm_hour, tmp->tm_min,
+	    snprintf(buff, 24, "%02d:%02d:%02d.%09d", tmp->tm_hour, tmp->tm_min,
 						tmp->tm_sec, msec_);
 			break;
 		}
-		return bufp;
+#pragma GCC diagnostic pop
+		return std::string(buff, strlen(buff));
 	}
-	char *String(char *bufp) noexcept {
-		if (ts3_unlikely(bufp == nullptr)) return nullptr;
-		if (ts3_unlikely(time_ == 0)) { *bufp = 0; return bufp; }
+	std::string String() noexcept {
+		if (ts3_unlikely(time_ == 0)) { std::string(""); }
+		char	buff[32];
 		auto tmp = tmPtr();
 		int	msec_ = time_ % dur;
 		// strftime without milliseconds
 		//auto res = strftime(bufp, 16, "%y-%m-%d %H:%M:%S", tmp);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
 		switch (dur) {
 		case duration::ms :
-		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
-			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
-			tmp->tm_sec, msec_);
+		snprintf(buff, 24, "%02d-%02d-%02d %02d:%02d:%02d.%03d",
+			tmp->tm_year%100, tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour,
+			tmp->tm_min, tmp->tm_sec, msec_);
 			break;
 		case duration::us :
-		sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
-			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
-			tmp->tm_sec, msec_);
+		snprintf(buff, 30, "%02d-%02d-%02d %02d:%02d:%02d.%06d",
+			tmp->tm_year%100, tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour,
+			tmp->tm_min, tmp->tm_sec, msec_);
 			break;
 		case duration::ns :
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%06d", tmp->tm_year%100,
-			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
-			tmp->tm_sec, msec_);
+	    snprintf(buff, 30, "%02d-%02d-%02d %02d:%02d:%02d.%09d",
+			tmp->tm_year%100, tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour,
+			tmp->tm_min, tmp->tm_sec, msec_);
 			break;
 		}
-		return bufp;
+		return std::string(buff, strlen(buff));
+#pragma GCC diagnostic pop
 	}
 private:
 	int64_t	time_ = 0;
@@ -696,25 +740,33 @@ public:
 	};
 	struct tm *tmPtr(struct tm *bufp=nullptr) noexcept {
 #ifdef	__linux__
-		time_t	secs = sec_ - timezone;
+		utime_t	secs = sec_ - timezone;
+#ifdef	__LP64__
 		if (ts3_unlikely(bufp == nullptr)) return gmtime(&secs);
 		return gmtime_r(&secs, bufp);
+#else
+		if (ts3_unlikely(bufp == nullptr)) return gmtime64(&secs);
+		return gmtime64_r(&secs, bufp);
+#endif
 #else
 		if (ts3_unlikely(bufp == nullptr)) return gmtime(&sec_);
 		return gmtime_r(&sec_, bufp);
 #endif
 	};
-	char *String(char *bufp) noexcept {
-		if (ts3_unlikely(bufp == nullptr)) return nullptr;
+	std::string String() noexcept {
+		char	buff[32];
 		auto tmp = tmPtr();
-	    sprintf(bufp, "%02d-%02d-%02d %02d:%02d:%02d.%03d", tmp->tm_year%100,
-			tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min,
-			tmp->tm_sec, msec_);
-		return bufp;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+	    snprintf(buff, 30, "%02d-%02d-%02d %02d:%02d:%02d.%03d",
+			tmp->tm_year%100, tmp->tm_mon+1, tmp->tm_mday, tmp->tm_hour,
+			tmp->tm_min, tmp->tm_sec, msec_);
+#pragma GCC diagnostic pop
+		return std::string(buff, strlen(buff));
 	}
 	int	ms() { return msec_; }
 private:
-	time_t	sec_;
+	utime_t	sec_;
 	int		msec_;
 };
 

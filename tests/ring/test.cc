@@ -1,6 +1,5 @@
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
 #include <chrono>
@@ -32,11 +31,9 @@ BENCHMARK(test_chrono);
 int main(int argc, char ** argv) {
 	tStart = time(0);
 	DateTimeMs	nn;
-	char	buff[256];
 	timespec	tp2;
 	clock_gettime(CLOCK_MONOTONIC, &tpStart);
-	nn.String(buff);
-	std::cout << "Now: " << buff << std::endl;
+	std::cout << "Now: " << nn.String() << std::endl;
 	benchmark::Initialize(&argc, argv);
 	benchmark::RunSpecifiedBenchmarks();
 	std::cout << "gettimeofday cost " << double(timeCost)*0.001 << " ms" << std::endl;

@@ -77,7 +77,7 @@ private:
 } __attribute__((packed));
 
 
-uint32_t forceinline __hash(const char* data, size_t len)
+uint32_t forceinline __hash(const u8* data, size_t len)
 {
 	uint32_t	hash(2166136261);
 	for (size_t i=0;i<len;++i) {

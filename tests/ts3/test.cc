@@ -1,8 +1,8 @@
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
+#include <bitset>
 #include <chrono>
 #include <queue>
 #include <iostream>
@@ -33,27 +33,39 @@ TEST(testTS3, TestTypes)
 	ts3::int48_t	v3(0x912345678901);
 	std::cerr << "v3 value: " << std::hex << v3.int64() << std::endl;
 	EXPECT_TRUE(v3.int64() < 0);
+	std::bitset<512>	b1("1111010000");
+	std::cerr << "Sizeof bitset<512> " << std::dec << sizeof(b1) << std::endl;
+	EXPECT_TRUE(b1.test(4));
+	std::cerr << "Sizeof unsigned " << sizeof(unsigned int) << std::endl;
+	std::cerr << "Sizeof long " << sizeof(long) << std::endl;
 }
 
 TEST(testTS3, TestTimeval)
 {
-	const time_t	tt=time(nullptr);
-	ts3::timeval	tv(&tt);
+#ifdef	__LP64__
+ 	const time_t	tt=time(nullptr);
+#else
+	const time64_t	tt=time(nullptr);
+#endif
+	ts3::TimeVal	tv(&tt);
 	ASSERT_EQ(sizeof(tv), (size_t)8);
 	ASSERT_EQ(tv.seconds(), tt);
 	ASSERT_EQ(tv.nanoSeconds(), (uint32_t)0);
-	tv = ts3::timeval(tt<<32 | 123);
+	tv = ts3::TimeVal(tt<<32 | 123);
 	EXPECT_EQ(tv.nanoSeconds(), (uint32_t)123);
 	EXPECT_EQ(tv.unix(), tt);
-	ts3::timeval	tvS, tvE;
+	ts3::TimeVal	tvS, tvE;
+	int	nsec;
+#ifdef	_NTEST
 	tvS.now();
 	int	nIntrs=0;
 	for(int i=0;i<10000;++i) if (tvS.usleep(100)<0) ++nIntrs;
 	tvE.now();
-	int nsec = tvE.sub(tvS) / 10000000;
+	nsec = tvE.sub(tvS) / 10000000;
 	ASSERT_TRUE(nsec != 100);
-	std::cerr << "timeval.usleep(100) cost " << std::dec << nsec
+	std::cerr << "TimeVal.usleep(100) cost " << std::dec << nsec
 			<< " microseconds with " << nIntrs << " Interrupts\n";
+#endif
 	tvS.now();
 	for(int i=0;i<10000;++i) ts3::usleep(180);
 	tvE.now();
@@ -80,7 +92,6 @@ TEST(testTS3, TestLocalTime)
 	auto st = time(nullptr);
 	EXPECT_FALSE(ts3::__ts3_ts_inited);
 	ts3::LocalTime	tt(st);
-	char	sbuf[32];
 	auto tmp = tt.ltime();
 	auto tmp1 = ts3::klocaltime(st, nullptr);
 	ASSERT_EQ(st, tt.time());
@@ -90,7 +101,7 @@ TEST(testTS3, TestLocalTime)
 	ASSERT_EQ(tmp->tm_hour, tmp1->tm_hour);
 	ASSERT_EQ(tmp->tm_min, tmp1->tm_min);
 	ASSERT_EQ(tmp->tm_sec, tmp1->tm_sec);
-	auto ss = tt.SString(sbuf);
+	auto ss = tt.SString();
 	std::cerr << "Current: " << ss << std::endl; 
 	int	nextHour = tmp->tm_hour + 1;
 	int	lastHour = tmp->tm_hour - 1;
@@ -101,7 +112,7 @@ TEST(testTS3, TestLocalTime)
 	ASSERT_EQ(tmp->tm_hour, nextHour);
 	ASSERT_EQ(tmp->tm_min, 0);
 	ASSERT_EQ(tmp->tm_sec, 0);
-	ss = tt.SString(sbuf);
+	ss = tt.SString();
 	std::cerr << "Next Hour Time: " << ss << std::endl; 
 	int	y, m, d;
 	std::tie(y,m,d) = tt.ymd();
@@ -112,13 +123,16 @@ TEST(testTS3, TestLocalTime)
 	ASSERT_EQ(tmp->tm_hour, lastHour);
 	ASSERT_EQ(tmp->tm_min, 0);
 	ASSERT_EQ(tmp->tm_sec, 0);
-	ss = tt.SString(sbuf);
+	ss = tt.SString();
 	std::cerr << "Last Hour Time: " << ss << std::endl; 
 }
 
 #ifdef	__x86_64__
 TEST(testTS3, TestTscClock)
 {
+#ifndef	NO_RDTSCP
+	ASSERT_TRUE(ts3::check_rdtscp());
+#endif
 	auto st = time(nullptr);
 	auto sTick = ts3::rdtscp();
 	auto usp = ts3::tsc_clock::Instance().us_pertick();
@@ -132,7 +146,11 @@ TEST(testTS3, TestTscClock)
 			<< " jitter: " << jitter << std::endl;
 	auto el = tscc.elapse(sTick, eTick);
 	EXPECT_TRUE(el >= 1.0e6);
+#ifdef	__linux__
 	EXPECT_TRUE(el < 1.001e6);
+#else
+	EXPECT_TRUE(el < 1.07e6);
+#endif
 	std::cerr << "tsc_clock init cost " << tscc.elapse(sTick, eTick)
 			<< "us\n";
 }
@@ -169,7 +187,9 @@ TEST(testTS3, TestDatetime)
 	tn -= 28800;
 #endif
 	//DateTime<...> String via GMT
-	ASSERT_TRUE(ts1.String(ss) != nullptr);
+	auto tsSS = ts1.String();
+	ASSERT_TRUE(tsSS != "");
+	memcpy(ss, tsSS.data(), tsSS.size());
 	const char *sp=strptime(ss, fmtTime, &tmpN);
 	ASSERT_TRUE(sp != nullptr);
 	EXPECT_EQ(tmp, tmpN);
@@ -194,7 +214,11 @@ TEST(testTS3, TestTimeStamp)
 	ts3::timestamp	ts("CST", false);
 	cerr << "Sys clock resolution: " << ts.resolution() << "ns" << endl;
 	auto bt = ts.baseTime();
+#if	defined(__LP64__) || !defined(__linux__)
 	struct tm *tmp=localtime(&bt);
+#else
+	struct tm *tmp=localtime64(&bt);
+#endif
 	ASSERT_TRUE(tmp->tm_hour == 0 && tmp->tm_min == 0 && tmp->tm_sec == 0);
 	auto msTS=ts.nowMs();
 	time_t tt=msTS/1000 + bt;
@@ -243,7 +267,11 @@ TEST(testTS3, TestJulian)
 	EXPECT_EQ(tmGMT, tmTS);
 	auto ttnn = jd2.to_time_t();
 	tmTS.tm_hour = tmTS.tm_min = tmTS.tm_sec = 0;
+#if	defined(__LP64__) || !defined(__linux__)
 	gmtime_r(&ttnn, &tmGMT);
+#else
+	gmtime64_r(&ttnn, &tmGMT);
+#endif
 	EXPECT_EQ(tmGMT, tmTS);
 }
 
@@ -256,20 +284,23 @@ TEST(testTS3, TestClock)
 	auto msTS=ts.nowMs();
 	ts3::DateTime<ts3::duration::ms> ts2(ts.baseTime(), msTS);
 	auto tt = ts2.to_time_t();
+#if	defined(__LP64__) || !defined(__linux__)
 	struct tm	*tmp=gmtime(&tt);
+#else
+	struct tm	*tmp=gmtime64(&tt);
+#endif
 	EXPECT_EQ(tmp->tm_year+1900, 2018);
 	EXPECT_EQ(tmp->tm_mon+1, 5);
 	EXPECT_EQ(tmp->tm_mday, 5);
-	char	ss[128];
-	cerr << "ts<ms>: " << ts2.String(ss) << endl;
+	cerr << "ts<ms>: " << ts2.String() << endl;
 	ts3::usleep(100);
 	ts3::DateTime<ts3::duration::us> ts22(ts.baseTime(), ts.nowUs());
-	cerr << "ts<ms> after sleep 100us: " << ts22.String(ss) << endl;
+	cerr << "ts<ms> after sleep 100us: " << ts22.String() << endl;
 	tt += 3600*5;
 	simClk.setTime(tt);
 	usleep(100);
 	ts3::DateTime<ts3::duration::us> ts23(ts.baseTime(), ts.nowUs());
-	cerr << "ts<ms> 5:00 after sleep 100us: " << ts23.String(ss) << endl;
+	cerr << "ts<ms> 5:00 after sleep 100us: " << ts23.String() << endl;
 }
 
 TEST(testTS3, TestSubhour)
@@ -277,8 +308,7 @@ TEST(testTS3, TestSubhour)
 	ts3::timestamp	ts;
 	auto msTS = ts.nowUs();
 	ts3::DateTime<ts3::duration::us> ts2(ts.baseTime(), msTS);
-	char	ss[128];
-	cerr << "ts<us>: " << ts2.String(ss) << endl;
+	cerr << "ts<us>: " << ts2.String() << endl;
 	ts3::subHour	st(ts2.count());
 	ASSERT_EQ(sizeof(st), (size_t)4);
 	struct	tm tmGMT;
@@ -317,20 +347,22 @@ TEST(testTS3, TestSerial)
 	memcpy(pbuf.cc, ubuf.cc, sizeof(ubuf.cc));
 	ts3::Serialization	serialB(bb, sizeof(bb));
 #ifdef	_NTEST
-	ASSERT_TRUE(serialB.encode2b(ubuf.a));
-	ASSERT_TRUE(serialB.encode4b(ubuf.b));
+	ASSERT_TRUE(serialB.encode(ubuf.a));
+	ASSERT_TRUE(serialB.encode(ubuf.b));
 	ASSERT_TRUE(serialB.encodeBytes((u8 *)ubuf.cc, sizeof(ubuf.cc)));
-	ASSERT_TRUE(serialB.encode(ubuf.ss));
-	size_t bLen=serialB.Size();
+	size_t bLen=serialB.size();
 	EXPECT_EQ(sizeof(pbuf), bLen);
 	EXPECT_TRUE(memcmp(bb, &pbuf, sizeof(pbuf)) == 0);
+	ASSERT_TRUE(serialB.encode(ubuf.ss));
+	bLen=serialB.size();
+	EXPECT_EQ(sizeof(pbuf)+ubuf.ss.size()+1, bLen);
 	ts3::Serialization  serialC(bb, bLen);
 	uint16_t	a;
 	uint32_t	b;
 	char		cc[8];
 	std::string	ss;
-	ASSERT_TRUE(serialC.decode2b(a));
-	ASSERT_TRUE(serialC.decode4b(b));
+	ASSERT_TRUE(serialC.decode(a));
+	ASSERT_TRUE(serialC.decode(b));
 	ASSERT_TRUE(serialC.decodeBytes((u8 *)cc, sizeof(cc)));
 	ASSERT_TRUE(serialC.decode(ss));
 	EXPECT_EQ(ubuf.a, a);
@@ -354,7 +386,7 @@ TEST(testTS3, TestSerial)
 	ASSERT_TRUE(serialB1.encode(ubuf.a, ubuf.b));
 	ASSERT_TRUE(serialB1.encodeBytes((const u8*)ubuf.cc, sizeof(ubuf.cc)));
 	ASSERT_TRUE(serialB1.encode(ubuf.ss));
-	bLen=serialB1.Size();
+	bLen=serialB1.size();
 	//EXPECT_EQ(sizeof(pbuf), bLen);
 	EXPECT_EQ(sizeof(pbuf)+6, bLen);
 	EXPECT_TRUE(memcmp(bb, &pbuf, sizeof(pbuf)) == 0);
@@ -393,6 +425,16 @@ TEST(testTS3, TestMessage)
 	ts3::CLmessage	clm;
 	EXPECT_EQ(sizeof(clm), (size_t)64);
 }
+
+#ifdef	__x86_64__
+TEST(testTS3, TestCPUid)
+{
+	auto res = ts3::x86_cpuid();
+	EXPECT_TRUE(res != 0);
+	std::cerr << "CPUID " << std::hex << res << std::dec << std::endl;
+
+}
+#endif
 
 int main(int argc,char *argv[])
 {

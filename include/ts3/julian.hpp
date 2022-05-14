@@ -3,6 +3,9 @@
 #define	__TS3_JULIAN_HPP__
 
 #include <time.h>
+#if	!defined(__LP64__) && defined(__linux__)
+#include <time64.h>
+#endif
 #include <chrono>
 #include <tuple>
 #include <string>
@@ -14,6 +17,11 @@ namespace ts3 {
 //#define	TS3_JULIAN_EPOCH		2440588
 
 constexpr int32_t	julian_Epoch = 2440588;
+#if	!defined(__LP64__) && defined(__linux__)
+using	utime_t = time64_t;
+#else
+using	utime_t = time_t;
+#endif
 
 class JulianDay {
 public:
@@ -21,8 +29,10 @@ public:
 	bool operator<(const JulianDay &j) const { return jDN_ < j.jDN_; }
 	JulianDay(const JulianDay &) = default;
 	JulianDay(const int v=0) : jDN_(v) {}
-	JulianDay(int y, int m, int d) { jDN_ = newJDN(y, m, d); }
-	explicit JulianDay(const uint32_t days) {
+	JulianDay(const int y, const int m, const int d) noexcept {
+		jDN_ = newJDN(y, m, d);
+	}
+	explicit JulianDay(const uint32_t days) noexcept {
 		int year = days / 10000;
 		int mon = (days % 10000) / 100;
 		int mday = days % 100;
@@ -36,8 +46,8 @@ public:
 		return 0;
 	}
 	int32_t	count() { return jDN_; }
-	time_t to_time_t() {
-		time_t	res=jDN_ - julian_Epoch;
+	utime_t to_time_t() {
+		utime_t	res=jDN_ - julian_Epoch;
 		res *= 3600*24;
 		return res;
 	}
@@ -46,11 +56,12 @@ public:
 		char	buff[64];
 		auto [y,m,d] = date(jDN_);
 		if (ts3_likely(y >= 0)) {
-			sprintf(buff, "%04d-%02d-%02d", y, m, d);
+			snprintf(buff, sizeof(buff)-1, "%04d-%02d-%02d", y, m, d);
 		} else {
 			y = -y;
-			sprintf(buff, "BC %04d-%02d-%02d", y, m, d);
+			snprintf(buff, sizeof(buff)-1, "BC %04d-%02d-%02d", y, m, d);
 		}
+		buff[sizeof(buff)-1] = 0;
 		return std::string(buff, strlen(buff));
 	}
 	bool getYMD(int &y, int &m, int &d) noexcept {
@@ -81,7 +92,7 @@ private:
 };
 
 
-forceinline struct tm*	gmtime(const time_t timeV, struct tm *result) noexcept
+forceinline struct tm*	gmtime(const utime_t timeV, struct tm *result) noexcept
 {
 	if (result == nullptr) return result;
 	int	days=timeV/(3600*24);

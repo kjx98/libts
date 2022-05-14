@@ -106,7 +106,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, eventCode_, symbolIndex_,
 			trackingNo_, timeHours_, timestamp_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -172,7 +172,7 @@ public:
 		if (!sr.encode(classification_, precision_, symbolIndex_, trackingNo_,
 			timestamp_, roundLotSize_, turnoverMulti_, lowerLimit_,
 			upperLimit_)) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -240,7 +240,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, tradingState_, reason_,
 			symbolIndex_, trackingNo_, timestamp_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -292,7 +292,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, buySell_, symbolIndex_,
 			trackingNo_, timestamp_, orderRefNo_, qty_, price_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -350,7 +350,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, printable_, symbolIndex_,
 			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -404,7 +404,7 @@ public:
 		if (ts3_unlikely(!sr.encode(msgType_, printable_, symbolIndex_,
 			trackingNo_, timestamp_, orderRefNo_, qty_, matchNo_, price_)))
 			return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -467,7 +467,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (!sr.encode(msgType_, cancelReason_, symbolIndex_, trackingNo_,
 			timestamp_, orderRefNo_, qty_)) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -513,7 +513,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, cancelReason_, symbolIndex_,
 			trackingNo_, timestamp_, orderRefNo_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -560,7 +560,7 @@ public:
 		Serialization	sr(bufP, bLen);
 		if (ts3_unlikely(!sr.encode(msgType_, symbolIndex_, trackingNo_,
 			timestamp_, orderRefNo_, newOrderRefNo_, qty_, price_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -613,7 +613,7 @@ public:
 		if (ts3_unlikely(!sr.encode(msgType_, buySell_, symbolIndex_,
 			trackingNo_, timestamp_, orderRefNo_, qty_, price_, matchNo_)))
 			return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{
@@ -675,7 +675,7 @@ public:
 		if (ts3_unlikely(!sr.encode(msgType_, crossType_, symbolIndex_,
 			trackingNo_, timestamp_, qty_, price_, pclose_, openInterest_,
 			matchNo_))) return -1;
-		return sr.Size();
+		return sr.size();
 	}
 	bool unmarshal(Serialization &sr) noexcept
 	{

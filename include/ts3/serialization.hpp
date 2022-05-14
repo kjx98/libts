@@ -14,9 +14,9 @@ public:
 		off_(sr.off_), err_(sr.err_), bufp_(sr.bufp_) {}
 	Serialization(const void *bufP, int bSize): bSize_(bSize),
 		bufp_((u8 *)bufP) {}
-	int	Size() const { return off_; }
-	void *Data() const { return bufp_; }
-	bool Error() const { return err_; }
+	size_t	size() const { return off_; }
+	void *data() const { return bufp_; }
+	bool error() const { return err_; }
 	template<size_t nSiz>bool encode(const pstring<nSiz> & ss) noexcept {
 		if (ts3_unlikely(err_)) return !err_;
 		if (ss.size() == 0) return encode1b(0);

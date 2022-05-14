@@ -33,4 +33,21 @@
 #endif
 #endif
 
+namespace ts3 {
+
+#define TS3_DISABLE_COPY_MOVE(X) \
+	X(const X &other)			= delete; \
+	X(X &&other)				= delete; \
+	X &operator=(const X &other)= delete; \
+	X &operator=(X &&other)		= delete;
+
+#define TS3_DISABLE_COPY_MOVE_DEFAULT(X) \
+	X()							= delete; \
+	X(const X &other)			= delete; \
+	X(X &&other)				= delete; \
+	X &operator=(const X &other)= delete; \
+	X &operator=(X &&other)		= delete;
+
+}
+
 #endif	// __TS3_CDEFS_H__
